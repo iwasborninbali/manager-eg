@@ -1,26 +1,232 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-white: #FFFFFF;
+  --color-black: #000000;
+
+  --color-primary-50: #E6F7F7;
+  --color-primary-100: #C2EEEF;
+  --color-primary-200: #9DE4E6;
+  --color-primary-300: #6ED9DD;
+  --color-primary-400: #3ECFD4;
+  --color-primary-500: #23B5BA;
+  --color-primary-600: #1A8D92;
+  --color-primary-700: #14676A;
+  --color-primary-800: #0E4143;
+  --color-primary-900: #072121;
+
+  --color-secondary-50: #FFF8E6;
+  --color-secondary-100: #FFEBCC;
+  --color-secondary-200: #FFD999;
+  --color-secondary-300: #FFC866;
+  --color-secondary-400: #FFB633;
+  --color-secondary-500: #FF9F00;
+  --color-secondary-600: #CC7F00;
+  --color-secondary-700: #995F00;
+  --color-secondary-800: #664000;
+  --color-secondary-900: #332000;
+
+  --color-neutral-50: #F7F9FA;
+  --color-neutral-100: #EEF1F4;
+  --color-neutral-200: #DEE3E8;
+  --color-neutral-300: #C2CAD1;
+  --color-neutral-400: #A4B0BC;
+  --color-neutral-500: #8696A7;
+  --color-neutral-600: #677A8F;
+  --color-neutral-700: #516173;
+  --color-neutral-800: #3A4754;
+  --color-neutral-900: #212A36;
+  --color-neutral-950: #121820;
+
+  --color-success-50: #E8F7ED;
+  --color-success-100: #DCFFEB;
+  --color-success-200: #BAFFCD;
+  --color-success-300: #85F0A5;
+  --color-success-400: #4AE07F;
+  --color-success-500: #22C55E;
+  --color-success-600: #1CA74F;
+  --color-success-700: #15803D;
+  --color-success-800: #115C2D;
+  --color-success-900: #0C4A21;
+
+  --color-warning-50: #FEF5E7;
+  --color-warning-100: #FDEFD0;
+  --color-warning-200: #FCDC9F;
+  --color-warning-300: #FAC768;
+  --color-warning-400: #F8B32D;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D88A04;
+  --color-warning-700: #B45309;
+  --color-warning-800: #93440E;
+  --color-warning-900: #7A370F;
+
+  --color-error-50: #FEE7E7;
+  --color-error-100: #FECECE;
+  --color-error-200: #FCA5A5;
+  --color-error-300: #F87070;
+  --color-error-400: #F15A5A;
+  --color-error-500: #EF4444;
+  --color-error-600: #DD2727;
+  --color-error-700: #B91C1C;
+  --color-error-800: #991717;
+  --color-error-900: #7C1313;
+
+  --color-info-50: #EFF6FF;
+  --color-info-100: #DEE9FF;
+  --color-info-200: #BAD3FF;
+  --color-info-300: #92B7FD;
+  --color-info-400: #609BF8;
+  --color-info-500: #3B82F6;
+  --color-info-600: #2E70E3;
+  --color-info-700: #1D4ED8;
+  --color-info-800: #1D40B0;
+  --color-info-900: #1C3690;
+
+  --font-sans: var(--font-geist-sans), sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+
+  --rounded-sm: 0.25rem;
+  --rounded-md: 0.375rem;
+  --rounded-lg: 0.5rem;
+  --rounded-xl: 0.75rem;
+  --rounded-2xl: 1rem;
+  --rounded-3xl: 1.5rem;
+  --rounded-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-glass: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+
+  --spacing-4_5: 1.125rem;
+  --spacing-13: 3.25rem;
+  --spacing-15: 3.75rem;
+  --spacing-18: 4.5rem;
+  --spacing-26: 6.5rem;
+  --spacing-30: 7.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --foreground-rgb: 33, 42, 54;
+  --background-start-rgb: 247, 249, 250;
+  --background-end-rgb: 238, 241, 244;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground-rgb: 238, 241, 244;
+    --background-start-rgb: 18, 24, 32;
+    --background-end-rgb: 33, 42, 54;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  font-family: var(--font-sans);
+}
+
+/* Custom Components */
+@layer components {
+  /* Modern Card Styles */
+  .card {
+    @apply bg-[--color-neutral-50] dark:bg-[--color-neutral-900] rounded-[--rounded-xl] shadow-[--shadow-md] overflow-hidden transition-all duration-300 hover:shadow-[--shadow-lg] border border-[--color-neutral-200]/10 dark:border-[--color-neutral-800]/10;
+  }
+  
+  .card-glass {
+    @apply bg-[--color-neutral-50]/70 dark:bg-[--color-neutral-900]/70 backdrop-blur-md rounded-[--rounded-xl] shadow-[--shadow-glass] border border-[--color-white]/20 dark:border-[--color-neutral-800]/20;
+  }
+  
+  /* Button Styles */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-[--rounded-lg] px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-[--rounded-lg] px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none bg-[--color-primary-500] text-[--color-neutral-50] hover:bg-[--color-primary-600] focus:ring-[--color-primary-500];
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-[--rounded-lg] px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none bg-[--color-secondary-500] text-[--color-neutral-50] hover:bg-[--color-secondary-600] focus:ring-[--color-secondary-500];
+  }
+  
+  .btn-outline {
+    @apply inline-flex items-center justify-center rounded-[--rounded-lg] px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none border border-[--color-neutral-300]/20 dark:border-[--color-neutral-700]/20 bg-transparent hover:bg-[--color-neutral-100] dark:hover:bg-[--color-neutral-800];
+  }
+  
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-[--rounded-lg] px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none bg-transparent hover:bg-[--color-neutral-100] dark:hover:bg-[--color-neutral-800];
+  }
+  
+  /* Input Styles */
+  .input {
+    @apply px-3 py-2 rounded-[--rounded-lg] border border-[--color-neutral-300]/20 dark:border-[--color-neutral-700]/20 bg-[--color-neutral-50] dark:bg-[--color-neutral-900] text-[--color-neutral-900] dark:text-[--color-neutral-100] focus:outline-none focus:ring-2 focus:ring-[--color-primary-500] focus:border-transparent;
+  }
+  
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center rounded-[--rounded-full] px-2.5 py-0.5 text-xs font-medium;
+  }
+  
+  .badge-primary {
+    @apply inline-flex items-center rounded-[--rounded-full] px-2.5 py-0.5 text-xs font-medium bg-[--color-primary-100] text-[--color-primary-700] dark:bg-[--color-primary-900] dark:text-[--color-primary-300];
+  }
+  
+  .badge-secondary {
+    @apply inline-flex items-center rounded-[--rounded-full] px-2.5 py-0.5 text-xs font-medium bg-[--color-secondary-100] text-[--color-secondary-700] dark:bg-[--color-secondary-900] dark:text-[--color-secondary-300];
+  }
+  
+  /* Avatar */
+  .avatar {
+    @apply relative flex h-10 w-10 shrink-0 overflow-hidden rounded-[--rounded-full];
+  }
+  
+  /* Container Layout */
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Section Styles */
+  .section {
+    @apply py-12 md:py-16 lg:py-20;
+  }
+  
+  /* Text Styles */
+  .heading-1 {
+    @apply text-4xl sm:text-5xl font-bold tracking-tight text-[--color-neutral-900] dark:text-[--color-neutral-50];
+  }
+  
+  .heading-2 {
+    @apply text-3xl sm:text-4xl font-bold tracking-tight text-[--color-neutral-900] dark:text-[--color-neutral-50];
+  }
+  
+  .heading-3 {
+    @apply text-2xl sm:text-3xl font-bold tracking-tight text-[--color-neutral-900] dark:text-[--color-neutral-50];
+  }
+  
+  .text-body {
+    @apply text-base leading-7 text-[--color-neutral-700] dark:text-[--color-neutral-300];
+  }
+}
+
+/* Custom Utilities */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-md bg-[--color-neutral-50]/70 dark:bg-[--color-neutral-900]/70;
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[--color-primary-500] to-[--color-secondary-500];
+  }
 }

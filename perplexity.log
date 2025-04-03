@@ -1,0 +1,672 @@
+2025-03-29 23:16:03,426 - INFO - Final query sent to Perplexity AI:
+Latest UI/UX design trends for 2025, modern design systems, and color schemes for web applications
+2025-03-29 23:16:45,493 - INFO - Perplexity research result:
+The UI/UX landscape in 2025 embraces immersive experiences, AI integration, and sustainable design principles, while modern design systems prioritize automation and scalability. Color schemes balance bold experimentation with accessibility and emotional resonance. Here’s a breakdown of key trends:
+
+---
+
+## UI/UX Design Trends  
+**1. Immersive Interactions**  
+- **Interactive 3D Elements**: Moving beyond decoration, 3D objects now guide user journeys (e.g., product showcases, spatial interfaces)[1][5].  
+- **AI-Driven Interfaces**: Personalized UI adaptations, chatbots with empathetic responses, and predictive layouts[1][9].  
+- **Modern Skeuomorphism**: Subtle textures and gradients add depth to flat designs, blending realism with minimalism[1][5].  
+
+**2. Bold Visual Language**  
+- **Brutalist Design**: Raw, grid-based layouts with monochrome schemes challenge polished aesthetics (e.g., Canva’s block-based layouts)[4][5].  
+- **Big Typography**: Oversized text dominates interfaces, paired with micro-animations for engagement[5][9].  
+- **Morphism**: Includes subtypes like Glassmorphism (frosted transparency) and Claymorphism (3D soft shadows)[5][9].  
+
+**3. Dynamic Layouts**  
+- **Bento Grids**: Modular, responsive grids organize content without clutter[1][5].  
+- **Text Transitions**: Animated typography to guide user focus (e.g., fades, scroll-triggered effects)[5].  
+- **Gamification**: Progress bars, streaks, and rewards integrated into apps like fitness or learning platforms[9].  
+
+---
+
+## Modern Design Systems  
+**1. Core Principles**  
+- **Design Tokens**: Centralized variables for colors, spacing, and typography ensure consistency across platforms (e.g., Material Design)[2][10].  
+- **Accessibility-First**: Contrast ratios, keyboard navigation, and screen-reader support are non-negotiable[2][8].  
+- **Component Libraries**: Include complex elements like data visualizations and AR/VR-ready modules[2][18].  
+
+**2. Automation & AI**  
+- **AI-Powered Tools**: Platforms like Bit.dev’s Hope AI automate component creation, testing, and deployment[6][18].  
+- **DesignOps**: Streamlined workflows for cross-team collaboration, reducing redundancies[2][14].  
+
+**3. Emerging Tech Adaptation**  
+- **AR/VR Support**: Design systems now include guidelines for spatial interfaces and gesture-based navigation[2][9].  
+
+---
+
+## Color Schemes for Web Applications  
+**Dominant Trends**  
+| **Palette Type**     | **Key Colors**                          | **Use Cases**                          |  
+|-----------------------|-----------------------------------------|----------------------------------------|  
+| **Nature-Inspired**   | Earthy greens, soft blues, warm neutrals | Sustainability brands, wellness apps  |  
+| **Retro-Futuristic**  | Neon accents + vintage hues (e.g., mauve) | Tech startups, creative portfolios    |  
+| **Bold Contrast**     | Mocha Mousse (#A47864) + Crisp White    | Luxury, minimalist designs[15]         |  
+| **Gradient Revolutions** | Blended vibrant/muted tones           | Backgrounds, dynamic CTAs[3][8]        |  
+
+**Best Practices**  
+- **Accessibility**: High-contrast pairings (e.g., Navy Blue + white)[15].  
+- **Sustainability**: Optimized color choices to reduce energy consumption on OLED screens[4].  
+- **Emotional Resonance**: Ruby reds for urgency, muted rose for calmness[7][11].  
+
+---
+
+## Industry Leaders & Examples  
+- **Google Material Design**: Cross-platform adaptability with open-source components[10].  
+- **Apple Human Interface Guidelines**: Intuitive interactions for iOS/macOS ecosystems[10].  
+- **IBM Carbon**: Enterprise-focused, accessibility-driven system[10].  
+
+By integrating these trends, designers can create interfaces that are visually compelling, functionally robust, and future-ready.
+2025-03-29 23:35:17,146 - INFO - Final query sent to Perplexity AI:
+Tailwind CSS v4 Cannot apply unknown utility class error with custom colors in theme.extend.colors using Next.js. Config seems correct, tried switching bundler, clearing cache. Using postcss.config.mjs with @tailwindcss/postcss. Example error: 'Cannot apply unknown utility class: bg-neutral-50'
+2025-03-29 23:35:40,780 - INFO - Perplexity research result:
+Tailwind CSS v4 introduces significant changes to theme configuration that require migration adjustments. Let's analyze the "unknown utility class" error with custom colors in Next.js:
+
+### Core Issues & Solutions
+**1. Theme Configuration Approach**
+- **v4 requires CSS-based theming** instead of `tailwind.config.js` for color extensions[5][13][15]
+- Migrate custom colors from JS config to CSS:
+```css
+/* globals.css */
+@import "tailwindcss";
+
+@theme {
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  /* ... */
+}
+```
+Remove custom colors from `tailwind.config.js`[5][12][15]
+
+**2. PostCSS Configuration**
+```js
+// postcss.config.mjs (Correct for v4)
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {}, // Legacy approach
+    // ✅ Correct:
+    "tailwindcss": {},
+    "autoprefixer": {}
+  }
+};
+export default config;
+```
+v4 uses simplified PostCSS config[3][6][11]
+
+**3. Class Detection Requirements**
+- Ensure `content` paths cover all template files:
+```js
+// tailwind.config.js
+module.exports = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}"
+  ]
+};
+```
+Update paths to match project structure[6][9]
+
+**4. Cache Management**
+```bash
+rm -rf .next/node_modules/.cache
+npm cache clean --force
+```
+Combined with restarting dev server[7]
+
+### Common Pitfalls
+1. **Mixed v3/v4 Config Patterns**
+   - Remove `@tailwind base/components/utilities` directives
+   - Use single import: `@import "tailwindcss";`[3][6][11]
+
+2. **Dynamic Class Construction**
+```jsx
+// ❌ Bad
+<div className={`bg-${color}-50`}>
+
+// ✅ Good
+const colorMap = {
+  neutral: "bg-neutral-50",
+  blue: "bg-blue-50"
+};
+<div className={colorMap[color]}>
+```
+Tailwind can't detect dynamic class fragments[9]
+
+3. **Missing CSS Variable Reference**
+```css
+/* ❌ Missing reference */
+@theme {
+  --color-custom: #fff;
+}
+
+/* ✅ Correct */
+@import "tailwindcss";
+@theme {
+  --color-custom: #fff;
+}
+```
+
+### Working Example
+```css
+/* app/globals.css */
+@import "tailwindcss";
+
+@theme {
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+}
+```
+```jsx
+// Component usage
+export default function Card() {
+  return (
+    <div className="bg-neutral-50 p-4">
+      <h2 className="text-neutral-200">Title</h2>
+    </div>
+  )
+}
+```
+
+### Migration Checklist
+1. Update Tailwind to v4.0+ and remove `@tailwindcss/postcss`
+2. Convert theme extensions from JS to CSS `@theme` blocks
+3. Verify all template files in `content` config
+4. Use static class names only
+5. Clear build caches and restart dev server
+
+If issues persist after these changes, check for conflicts with other PostCSS plugins or consider creating a minimal reproduction repo to isolate the problem[1][4][7].
+2025-03-29 23:41:56,322 - INFO - Final query sent to Perplexity AI:
+Tailwind CSS v4 how to use border-opacity utility when theme is defined using @theme in CSS? Is border-opacity-10 still valid?
+2025-03-29 23:42:15,224 - INFO - Perplexity research result:
+In Tailwind CSS v4, the approach to border opacity has been modernized with improved CSS variable integration and simplified syntax. Here's what you need to know:
+
+### New Slash-Based Opacity Syntax
+The `border-opacity-{value}` utilities from v3 are deprecated in favor of direct opacity modifiers using slash notation:
+```html
+<div class="border-2 border-primary/50"> 
+  <!-- 50% opaque border using theme color -->
+</div>
+```
+This works automatically with colors defined via `@theme` [7][17].
+
+### Theme Configuration Requirements
+When using `@theme`, define colors with full opacity values:
+```css
+@theme {
+  --color-primary: rgb(59 130 246); /* Use RGB/RGBa/OKLCH */
+  --color-secondary: oklch(72% 0.25 178);
+}
+```
+Avoid hex codes for theme colors to ensure proper opacity handling [10][14].
+
+### Key Changes in v4
+1. **Automatic Alpha Channel Support**  
+   Colors defined via `@theme` automatically support opacity modifiers without separate utilities [4][7].
+
+2. **Simplified CSS Variable Usage**  
+   Directly reference theme variables with opacity:
+```html
+<div class="border-[var(--color-primary)]/50">
+```
+3. **Deprecated Utilities**  
+   `border-opacity-*` classes were removed in favor of CSS-native approaches [11][16].
+
+### Best Practices
+1. **Use Modern Color Formats**
+```css
+@theme {
+  --color-accent: oklch(70% 0.2 145); /* Better than HEX/RGB */
+}
+```
+2. **Dynamic Theming**  
+   Combine with CSS variables for theme switching:
+```css
+@theme {
+  --color-border: var(--theme-border);
+}
+[data-theme="dark"] {
+  --theme-border: rgb(75 85 99 / 0.5);
+}
+```
+
+### When You Need Custom Control
+For complex scenarios, use raw CSS:
+```css
+@layer utilities {
+  .border-muted-alpha {
+    border-color: color-mix(in oklch, var(--color-border), transparent 40%);
+  }
+}
+```
+
+The slash notation (`border-primary/50`) is now the recommended way to handle border opacity in v4, with full support for `@theme`-defined colors. Existing `border-opacity-*` classes should be replaced with this modern approach [7][8][17].
+2025-03-31 01:07:31,900 - INFO - Final query sent to Perplexity AI:
+best practices for responsive navbar with burger menu and user profile popover on hover in React with Tailwind CSS 2024
+2025-03-31 01:08:10,188 - INFO - Perplexity research result:
+Here are 2024 best practices for building a responsive navbar with burger menu and hover-activated profile popover in React + Tailwind CSS:
+
+```jsx
+// Navbar component structure
+import { useState } from 'react';
+import { Popover, PopoverHandler, PopoverContent } from "@material-tailwind/react";
+
+export default function Navbar() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  return (
+    <nav className="bg-white shadow-lg fixed w-full z-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <div className="flex-shrink-0">Logo</div>
+
+          {/* Desktop Nav Links */}
+          <div className="hidden md:flex space-x-8">
+            <a href="/" className="hover:text-blue-600">Home</a>
+            <a href="/about" className="hover:text-blue-600">About</a>
+          </div>
+
+          {/* Mobile Burger Menu */}
+          <button 
+            className="md:hidden p-2"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor">
+              {isMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+
+          {/* Profile Popover */}
+          <Popover placement="bottom-end">
+            <PopoverHandler>
+              <button className="ml-4">
+                <img 
+                  src="profile.jpg" 
+                  className="w-8 h-8 rounded-full cursor-pointer" 
+                  alt="Profile"
+                />
+              </button>
+            </PopoverHandler>
+            <PopoverContent className="p-4 shadow-xl">
+              <div className="flex flex-col gap-2">
+                <a href="/profile" className="hover:text-blue-600">Profile</a>
+                <button className="hover:text-blue-600">Logout</button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Mobile Menu */}
+        <div className={`md:hidden ${isMenuOpen ? 'block' : 'hidden'}`}>
+          <div className="pt-2 pb-4 space-y-1">
+            <a href="/" className="block px-3 py-2 hover:bg-gray-100">Home</a>
+            <a href="/about" className="block px-3 py-2 hover:bg-gray-100">About</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+```
+
+### Key Best Practices
+1. **Responsive Breakpoints** [18]:
+   - Use `md:` prefix for desktop styles
+   - Hide desktop nav with `hidden md:flex`
+   - Show mobile menu with `md:hidden`
+
+2. **Accessibility** [13][1]:
+   - Add `aria-label` to burger button
+   - Use semantic `<nav>` element
+   - Implement keyboard navigation
+
+3. **Profile Popover** [6][10]:
+```jsx
+// Hover implementation using Material Tailwind
+<Popover open={open} handler={setOpen}>
+  <PopoverHandler 
+    onMouseEnter={() => setOpen(true)}
+    onMouseLeave={() => setOpen(false)}
+  >
+    {/* Trigger element */}
+  </PopoverHandler>
+  <PopoverContent>{/* Content */}</PopoverContent>
+</Popover>
+```
+
+4. **Mobile Optimization** [9][5]:
+   - Use fixed positioning for sticky nav
+   - Implement touch-friendly dropdowns
+   - Add smooth transitions with Tailwind classes
+
+5. **Performance** [1][3]:
+   - Use CSS transitions instead of JS for animations
+   - Implement proper state cleanup
+   - Use memoization if needed
+
+### Essential Tailwind Classes
+```markdown
+| Responsive          | Hover States       | Transitions      |
+|---------------------|--------------------|------------------|
+| `md:hidden`         | `hover:bg-gray-100`| `transition-all` |
+| `max-w-7xl`         | `hover:text-blue-600` | `duration-300` |
+| `flex-col`          | `dark:hover:text-white` | `ease-in-out` |
+```
+
+### Common Pitfalls to Avoid
+1. **Z-index Conflicts** [1][5]
+   - Use `z-50` for sticky nav
+   - Ensure popovers have higher z-index
+
+2. **Mobile Hover States** [15]
+   - Use `@media (hover: hover)`
+   - Disable hover effects on touch devices
+
+3. **Popover Positioning** [6][14]
+   - Use `placement="bottom-end"`
+   - Add offset with `offset={5}`
+
+4. **State Management** [3][5]
+   - Close mobile menu on route changes
+   - Use `useCallback` for handlers
+
+### Animation Implementation
+```jsx
+// Smooth menu transition
+<PopoverContent
+  animate={{
+    mount: { y: 0, opacity: 1 },
+    unmount: { y: -25, opacity: 0 }
+  }}
+>
+```
+
+For production use, consider pre-built components from Material Tailwind [6][2] or Flowbite [14][18] to maintain consistency and accessibility standards.
+2025-03-31 01:24:33,851 - INFO - Final query sent to Perplexity AI:
+What are the best practices for implementing a burger menu in React in 2025? Focus on mobile-first design, accessibility, and modern animation techniques.
+2025-03-31 01:24:59,492 - INFO - Perplexity research result:
+Implementing a modern hamburger menu in React requires balancing mobile-first design, accessibility, and cutting-edge animation techniques. Here are 2025 best practices:
+
+## Mobile-First Implementation
+**Responsive Breakpoints**  
+- Use CSS media queries (e.g., `@media (max-width: 768px)`) to toggle between desktop and mobile layouts[5][8]  
+- Implement conditional rendering with React state to manage menu visibility[5][9]  
+
+**Performance Optimization**  
+- Offload animation calculations to native threads using libraries like React Native Reanimated for 60 FPS smoothness[11][15]  
+- Lazy-load menu content for faster initial page loads[15]  
+
+```jsx
+// Mobile-first state management example
+const [isOpen, setIsOpen] = useState(false);
+const toggleMenu = () => setIsOpen(!isOpen);
+```
+
+## Accessibility Essentials
+**Semantic Markup**  
+- Use `<nav>` with ARIA labels: `aria-label="Main navigation"`[4][8]  
+- Implement `aria-expanded={isOpen}` on toggle buttons[4][12]  
+
+**Keyboard Navigation**  
+- Handle `onKeyDown` events for Enter/Spacebar activation[4][12]  
+- Manage focus traps when menu opens using libraries like FocusTrapReact[4][8]  
+
+**Screen Reader Support**  
+- Accompany icon with text label ("Menu") for recognition[8][12]  
+- Use `role="button"` and `tabIndex={0}` on interactive elements[4][8]  
+
+## Modern Animation Techniques
+**Physics-Based Transitions**  
+- Use spring animations with Framer Motion for natural motion:  
+```jsx
+<motion.div 
+  animate={{ x: isOpen ? 0 : 100 }}
+  transition={{ type: "spring", stiffness: 100 }}
+/>
+```[3][6][15]
+
+**Gesture Integration**  
+- Combine with `react-use-gesture` for swipe-to-close functionality[11][15]  
+- Implement haptic feedback on mobile interactions[15]  
+
+**Hybrid 2D/3D Effects**  
+- Animate SVG paths for custom icon morphing:  
+```css
+.hamburger-path {
+  d: path(isOpen ? "M3 18L21 6" : "M3 5H21");
+  transition: d 0.3s ease;
+}
+```[4][7]
+
+## Recommended Tools (2025)
+| Library | Strength | Use Case |
+|---------|----------|----------|
+| Framer Motion | Declarative API | Complex UI animations[3][6][15] |  
+| React Spring | Physics-based | Natural motion effects[3][15] |  
+| react-burger-menu | Pre-built solutions | Rapid prototyping[2][9][13] |  
+| React Aria | Accessibility | ARIA-compliant components[12] |  
+
+**Animation Performance Checklist**  
+1. Use `will-change: transform` for GPU acceleration[3]  
+2. Implement CSS containment for isolated rendering[15]  
+3. Debounce rapid state changes[11]  
+4. Test with Chrome's Rendering tab for jank detection[11]  
+
+For complex projects, consider React Native Reanimated 3's new shared element transitions and gesture handler integrations[11][15]. Always prioritize perceived performance through skeleton loading states during menu content fetch operations[15].
+2025-03-31 21:14:50,381 - INFO - Final query sent to Perplexity AI:
+best practices for button design in Next.js apps 2025
+2025-04-04 01:06:11,903 - INFO - Final query sent to Perplexity AI:
+React Tailwind CSS best practices for styling file input upload field
+
+Attached file contents:
+File: components/ui/Input.tsx
+import React from 'react';
+import { cn } from '@/lib/utils';
+
+export interface InputProps
+  extends React.InputHTMLAttributes<HTMLInputElement> {
+  leftElement?: React.ReactNode;
+  rightElement?: React.ReactNode;
+  error?: string;
+  label?: string;
+  helperText?: string;
+}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, leftElement, rightElement, error, label, helperText, ...props }, ref) => {
+    const inputClasses = cn(
+      'flex h-10 w-full rounded-lg border bg-white dark:bg-neutral-900 px-3 py-2 text-sm transition-colors',
+      'file:border-0 file:bg-transparent file:text-sm file:font-medium',
+      'placeholder:text-neutral-400 dark:placeholder:text-neutral-500',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-0',
+      'disabled:cursor-not-allowed disabled:opacity-50',
+      error
+        ? 'border-error-500 focus-visible:ring-error-500'
+        : 'border-neutral-200 dark:border-neutral-700 focus-visible:border-primary-500',
+      leftElement && 'pl-10',
+      rightElement && 'pr-10',
+      className
+    );
+
+    return (
+      <div className="space-y-1.5">
+        {label && (
+          <label
+            className={cn(
+              'text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+              error && 'text-error-500'
+            )}
+          >
+            {label}
+          </label>
+        )}
+        <div className="relative">
+          {leftElement && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">
+              {leftElement}
+            </div>
+          )}
+          <input
+            className={inputClasses}
+            ref={ref}
+            {...props}
+          />
+          {rightElement && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500">
+              {rightElement}
+            </div>
+          )}
+        </div>
+        {(helperText || error) && (
+          <p className={cn(
+            'text-xs',
+            error ? 'text-error-500' : 'text-neutral-500 dark:text-neutral-400'
+          )}>
+            {error || helperText}
+          </p>
+        )}
+      </div>
+    );
+  }
+);
+
+Input.displayName = 'Input';
+
+export { Input }; 
+
+
+2025-04-04 01:06:44,075 - INFO - Perplexity research result:
+Here are React + Tailwind CSS best practices for styling file input upload fields, based on current implementations and your provided Input component:
+
+### Core Approaches
+```tsx
+// Approach 1: Native Tailwind File Styling (Simplest)
+<input 
+  type="file"
+  className="file:rounded-lg file:border-0 file:px-4 file:py-2 file:bg-primary-500 file:text-white hover:file:bg-primary-600 file:transition-colors"
+/>
+// Source: Tailwind CSS Docs
+// URL: https://tailwindcss.com/docs/adding-custom-styles
+// Best for basic styling needs using native file input modifiers
+```
+
+```tsx
+// Approach 2: Custom Wrapper (Recommended for full control)
+<div className="relative">
+  <input
+    type="file"
+    className="absolute opacity-0 w-full h-full cursor-pointer"
+    onChange={handleFileChange}
+  />
+  <div className="flex items-center px-4 py-2 border rounded-lg bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800">
+    <UploadIcon className="w-5 h-5 mr-2 text-neutral-500" />
+    <span className="text-sm">
+      {selectedFile ? selectedFile.name : "Choose file"}
+    </span>
+  </div>
+</div>
+// Source: Viget Article
+// URL: https://www.viget.com/articles/styling-native-file-upload-input-field/
+// Allows complete visual control while maintaining accessibility
+```
+
+### Best Practices for Your Input Component
+1. **Enhanced File Input Wrapper**  
+   Modify your existing Input component to handle file types specially:
+   ```tsx
+   // Add to Input.tsx
+   const isFileType = props.type === 'file';
+   
+   const fileClasses = cn(
+     inputClasses,
+     'cursor-pointer', // Add pointer cursor
+     isFileType && 'opacity-0 absolute inset-0' // Hide native input
+   );
+   ```
+
+2. **Accessible Custom Interface**
+   ```tsx
+   {isFileType && (
+     <div className="flex items-center px-3 py-2 border rounded-lg">
+       <span className="mr-2">📁 Choose file</span>
+       <span className="text-neutral-500 text-sm">
+         {props.value ? props.value.name : 'No file selected'}
+       </span>
+     </div>
+   )}
+   ```
+
+3. **Peer-Connected Styling**  
+   Use Tailwind's `peer` for state management:
+   ```tsx
+   className="peer opacity-0 absolute"
+   <label className="peer-hover:bg-neutral-100 peer-focus:ring-2...">
+   ```
+
+### Key Considerations
+**Dark Mode Support**  
+Leverage your existing dark mode classes:
+```tsx
+dark:file:bg-primary-600 dark:hover:file:bg-primary-700
+```
+
+**Validation Integration**  
+Extend your error handling for files:
+```tsx
+const fileErrorClasses = cn(
+  inputClasses,
+  error && 'border-error-500 file:border-error-500'
+);
+```
+
+**Drag & Drop Ready**  
+Add these props for future dropzone integration:
+```tsx
+onDragOver={(e) => e.preventDefault()}
+onDrop={handleFileDrop}
+```
+
+### Recommended Implementation
+```tsx
+<Input
+  type="file"
+  leftElement={<UploadIcon />}
+  className="file:bg-transparent file:text-neutral-600 dark:file:text-neutral-300"
+  helperText="Accepted formats: .pdf, .docx"
+/>
+```
+
+This maintains your component's structure while adding file-specific enhancements. The key is combining Tailwind's native file modifiers with your existing wrapper component architecture [1][2][8][9].
+
+### Common Pitfalls
+1. **Accessibility Neglect**  
+   Always maintain:
+   ```tsx
+   aria-label="File upload"
+   role="button"
+   tabIndex={0}
+   ```
+
+2. **Mobile Optimization**  
+   Ensure touch targets meet guidelines:
+   ```tsx
+   min-height: 44px; // Tailwind: min-h-[44px]
+   ```
+
+3. **Browser Consistency**  
+   Use feature detection for drag/drop:
+   ```tsx
+   const supportsDrag = 'draggable' in document.createElement('div');
+   ```
+
+For complex needs, consider wrapping react-dropzone with your Input component while maintaining the same styling API.
