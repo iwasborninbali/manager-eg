@@ -151,7 +151,7 @@ export default function SupplierCombobox({
                 onClick={openAddSupplierDialog} // Open dialog on click
                >
                  <PlusCircleIcon className="h-5 w-5 mr-2" aria-hidden="true" />
-                 Добавить поставщика "{queryState}"
+                 Добавить поставщика &quot;{queryState}&quot;
               </div>
             ) : (
               filteredSuppliers.map((supplier) => (

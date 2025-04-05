@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions
 import { auth, db } from '../firebase/config'; // Import auth and db
 
 // Define a type for our custom user data from Firestore
-interface UserData {
+export interface UserData {
   uid: string;
   email: string | null;
   displayName: string | null;

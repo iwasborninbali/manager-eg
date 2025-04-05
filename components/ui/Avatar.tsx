@@ -1,6 +1,7 @@
-import React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 const avatarVariants = cva(
   "relative flex shrink-0 overflow-hidden rounded-full",
@@ -49,10 +50,6 @@ const avatarVariants = cva(
   }
 );
 
-interface StatusDotVariants {
-  status: "online" | "offline" | "busy" | "away";
-}
-
 const statusDotClasses = {
   online: "bg-success-500",
   offline: "bg-neutral-400",
@@ -76,6 +73,7 @@ export interface AvatarProps
   alt?: string;
   fallback?: string;
   fallbackColor?: "primary" | "secondary" | "neutral" | "success" | "warning" | "error" | "info";
+  onError?: () => void;
 }
 
 const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
@@ -90,12 +88,13 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
       border,
       borderColor,
       status,
+      onError,
       ...props
     },
     ref
   ) => {
     const [imageError, setImageError] = React.useState(false);
-    const hasImage = src && !imageError;
+    const hasValidSrc = src && !imageError;
     const initials = fallback
       ? fallback.slice(0, 2)
       : alt
@@ -122,12 +121,16 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
         className={cn(avatarVariants({ size, border, borderColor, status, className }))}
         {...props}
       >
-        {hasImage ? (
-          <img
+        {hasValidSrc ? (
+          <Image
             src={src}
-            alt={alt}
-            className="h-full w-full object-cover"
-            onError={() => setImageError(true)}
+            alt={alt || 'User avatar'}
+            fill={true}
+            className="object-cover"
+            onError={() => {
+              setImageError(true);
+              if (onError) onError();
+            }}
           />
         ) : (
           <div

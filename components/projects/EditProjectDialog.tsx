@@ -11,7 +11,8 @@ import { db } from '@/firebase/config'; // Import db
 // Define Project interface (or import)
 interface Project {
     id: string;
-    budget?: number; // Себестоимость
+    actual_budget?: number; // Renamed from budget (Себестоимость - факт)
+    planned_budget?: number; // Added (Себестоимость - план)
     createdAt?: Timestamp;
     customer?: string;
     duedate?: Timestamp;
@@ -19,7 +20,8 @@ interface Project {
     managerid?: string;
     name?: string;
     number?: string;
-    planned_revenue?: number;
+    planned_revenue?: number; // Выручка - план
+    actual_revenue?: number; // Added (Выручка - факт)
     presentationlink?: string;
     status?: string;
     updatedAt?: Timestamp;
@@ -66,8 +68,8 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
         number: project.number ?? '',
         customer: project.customer ?? '',
         duedate: project.duedate ? project.duedate.toDate().toISOString().split('T')[0] : '',
-        budget: project.budget ?? undefined,
-        planned_revenue: project.planned_revenue ?? undefined,
+        budget: project.actual_budget ?? undefined,
+        planned_revenue: project.actual_revenue ?? undefined,
         estimatecostlink: project.estimatecostlink ?? '',
         presentationlink: project.presentationlink ?? '',
         status: project.status ?? 'planning',
@@ -110,15 +112,14 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
          number: formData.number,
          customer: formData.customer,
          duedate: formData.duedate ? Timestamp.fromDate(new Date(formData.duedate)) : undefined,
-         budget: formData.budget ? parseFloat(String(formData.budget)) : undefined,
-         planned_revenue: formData.planned_revenue ? parseFloat(String(formData.planned_revenue)) : undefined,
+         // Map form fields to the correct Project interface fields for Firestore update
+         actual_budget: formData.budget ? parseFloat(String(formData.budget)) : undefined,
+         actual_revenue: formData.planned_revenue ? parseFloat(String(formData.planned_revenue)) : undefined,
+         // NOTE: planned_budget and planned_revenue are NOT updated here, only actuals.
          estimatecostlink: formData.estimatecostlink,
          presentationlink: formData.presentationlink,
          status: formData.status,
-         description: formData.description, // Assuming description exists in formData and Project
-         // Assuming tax fields exist
-         // usn_tax: formData.usn_tax ? parseFloat(String(formData.usn_tax)) : undefined, 
-         // nds_tax: formData.nds_tax ? parseFloat(String(formData.nds_tax)) : undefined,
+         description: formData.description, 
          updatedAt: Timestamp.now(),
        };
 
@@ -224,11 +225,11 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                   {/* Row 3: Budget & Planned Revenue */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="budget" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Себестоимость (RUB)</label>
+                      <label htmlFor="budget" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Бюджет (Факт, RUB)</label>
                       <Input type="number" id="budget" name="budget" value={formData.budget ?? ''} onChange={handleChange} leftElement={<span className="text-sm">₽</span>} disabled={loading} />
                     </div>
                      <div>
-                      <label htmlFor="planned_revenue" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Выручка (план, RUB)</label>
+                      <label htmlFor="planned_revenue" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Выручка (Факт, RUB)</label>
                       <Input type="number" id="planned_revenue" name="planned_revenue" value={formData.planned_revenue ?? ''} onChange={handleChange} leftElement={<span className="text-sm">₽</span>} disabled={loading} />
                     </div>
                   </div>

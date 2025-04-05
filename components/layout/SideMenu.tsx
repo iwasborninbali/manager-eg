@@ -1,12 +1,16 @@
-import React, { Fragment, useState, useRef, useEffect } from 'react';
+import React, { Fragment, useRef } from 'react';
 import Link from 'next/link';
 import { Transition } from '@headlessui/react';
-import { Bars3Icon, XMarkIcon, PlusIcon, UserIcon, ArrowRightOnRectangleIcon, HomeIcon, Cog6ToothIcon, FolderIcon } from '@heroicons/react/24/outline';
+import {
+  FolderIcon,
+  BanknotesIcon,
+  XMarkIcon,
+  PlusIcon,
+  ArrowRightOnRectangleIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { cn } from '@/lib/utils';
 
 // Renamed props interface
 interface SideMenuProps {
@@ -32,9 +36,15 @@ export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: S
   const navigation: NavItem[] = [
     {
       name: 'Проекты',
-      href: '/',
+      href: '/projects',
       icon: <FolderIcon className="h-5 w-5" aria-hidden="true" />
     },
+    {
+      name: 'Бюджет отделов',
+      href: '/budgets',
+      icon: <BanknotesIcon className="h-5 w-5" aria-hidden="true" />
+    },
+    // Remove Suppliers link
     // Add more navigation items as needed
   ];
 

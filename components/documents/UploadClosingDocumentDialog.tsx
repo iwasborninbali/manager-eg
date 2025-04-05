@@ -28,13 +28,12 @@ interface Supplier {
 // Interface for the data structure saved to Firestore
 interface ClosingDocumentData {
     projectId: string;
-    invoiceId?: string; // Added later in the loop
+    invoiceId?: string;
     fileName: string;
     fileURL: string;
     uploadedAt: Timestamp;
     comment?: string | null;
     type?: 'contract' | 'upd' | 'act' | 'other' | null;
-    number?: string | null;
     date?: Timestamp | null;
 }
 
@@ -70,7 +69,6 @@ const UploadClosingDocumentDialog: React.FC<UploadClosingDocumentDialogProps> = 
   const [loading, setLoading] = useState(false);
   const [comment, setComment] = useState('');
   const [docType, setDocType] = useState<'contract' | 'upd' | 'act' | 'other' | '' >('');
-  const [docNumber, setDocNumber] = useState('');
   const [docDate, setDocDate] = useState(''); 
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]); // State for selected IDs
   const [invoiceSelectionError, setInvoiceSelectionError] = useState<string | null>(null);
@@ -87,7 +85,6 @@ const UploadClosingDocumentDialog: React.FC<UploadClosingDocumentDialogProps> = 
     setLoading(false);
     setComment('');
     setDocType('');
-    setDocNumber('');
     setDocDate('');
     setSelectedInvoiceIds([]); // Reset selected invoices
     setInvoiceSelectionError(null);
@@ -152,14 +149,13 @@ const UploadClosingDocumentDialog: React.FC<UploadClosingDocumentDialogProps> = 
       const downloadURL = await getDownloadURL(uploadResult.ref);
 
       // 2. Prepare base data (Use the new interface instead of any)
-      const baseDocData: Omit<ClosingDocumentData, 'invoiceId'> = { // Use Omit because invoiceId is added later
+      const baseDocData: Omit<ClosingDocumentData, 'invoiceId'> = {
         projectId,
         fileName: file.name,
         fileURL: downloadURL,
         uploadedAt: Timestamp.now(),
         comment: comment || null,
         type: docType || null,
-        number: docNumber || null,
         date: docDate ? Timestamp.fromDate(new Date(docDate)) : null,
       };
       
@@ -295,7 +291,7 @@ const UploadClosingDocumentDialog: React.FC<UploadClosingDocumentDialogProps> = 
                         />
                     </div>
 
-                   {/* Optional Fields */}
+                   {/* Document Metadata */}
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="docType" className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Тип документа</label>
@@ -318,30 +314,18 @@ const UploadClosingDocumentDialog: React.FC<UploadClosingDocumentDialogProps> = 
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="docNumber" className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Номер документа</label>
+                            <label htmlFor="docDate" className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Дата документа</label>
                             <Input 
-                                type="text"
-                                id="docNumber"
-                                value={docNumber}
-                                onChange={(e) => setDocNumber(e.target.value)}
-                                placeholder="Например, 123/А"
+                                type="date"
+                                id="docDate"
+                                value={docDate}
+                                onChange={(e) => setDocDate(e.target.value)}
                                 disabled={loading}
-                            />
+                                max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                             />
                         </div>
                    </div>
                    
-                   <div>
-                        <label htmlFor="docDate" className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Дата документа</label>
-                        <Input 
-                            type="date"
-                            id="docDate"
-                            value={docDate}
-                            onChange={(e) => setDocDate(e.target.value)}
-                            disabled={loading}
-                            max={new Date().toISOString().split('T')[0]} // Prevent future dates
-                         />
-                    </div>
-
                    <div>
                         <label htmlFor="comment" className="block text-sm font-medium mb-1 text-neutral-700 dark:text-neutral-300">Комментарий</label>
                         <Input

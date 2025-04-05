@@ -670,3 +670,96 @@ This maintains your component's structure while adding file-specific enhancement
    ```
 
 For complex needs, consider wrapping react-dropzone with your Input component while maintaining the same styling API.
+2025-04-05 04:19:46,489 - INFO - Final query sent to Perplexity AI:
+Recommend a simple React chart library for Next.js/TypeScript to visualize financial data: planned vs actual budget, planned vs actual revenue, and budget spent vs remaining. Consider Recharts, react-chartjs-2.
+2025-04-05 04:20:10,906 - INFO - Perplexity research result:
+For visualizing financial data like budget vs actuals in Next.js/TypeScript, **Recharts** emerges as the top recommendation due to its simplicity, React-first design, and SVG-based rendering. Here's a comparison and implementation guide:
+
+### Recharts Implementation (Recommended)
+```typescript
+// Budget vs Actual Comparison (Bar Chart)
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+const data = [
+  { month: 'Jan', planned: 50000, actual: 42000 },
+  { month: 'Feb', planned: 55000, actual: 58000 },
+  // ... Add more data
+];
+
+export const FinancialBarChart = () => (
+  <BarChart width={600} height={300} data={data}>
+    <CartesianGrid strokeDasharray="3 3" />
+    <XAxis dataKey="month" />
+    <YAxis />
+    <Tooltip />
+    <Legend />
+    <Bar dataKey="planned" fill="#8884d8" />
+    <Bar dataKey="actual" fill="#82ca9d" />
+  </BarChart>
+);
+```
+**Key advantages**:
+- Native SVG rendering for crisp visuals[2][6]
+- Declarative React components[2][4]
+- Built-in responsive container[4][6]
+- Zero-config animations[2]
+
+### react-chartjs-2 Alternative
+```typescript
+// Budget Spent vs Remaining (Doughnut Chart)
+import { Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+export const BudgetDonut = ({ spent, remaining }: { spent: number, remaining: number }) => (
+  <Doughnut 
+    data={{
+      labels: ['Spent', 'Remaining'],
+      datasets: [{
+        data: [spent, remaining],
+        backgroundColor: ['#ff6384', '#36a2eb']
+      }]
+    }}
+  />
+);
+```
+**Best for**:
+- Canvas-based rendering for large datasets[4][8]
+- Familiar Chart.js syntax[4][10]
+
+### Key Differences
+| Feature               | Recharts          | react-chartjs-2   |
+|-----------------------|-------------------|--------------------|
+| Rendering Engine      | SVG               | Canvas             |
+| Bundle Size           | 168kb (gzip)      | 210kb (gzip)       |
+| Tree Shaking          | Excellent         | Moderate           |
+| Mobile Performance    | Better for simple | Better for complex |
+| Financial Chart Types | Basic             | Basic              |
+
+### Best Practices
+1. **Data Formatting**:
+```typescript
+// Use typed data structures
+type FinancialData = {
+  period: Date;
+  planned: number;
+  actual: number;
+  variance: number;
+};
+```
+
+2. **Responsive Containers**:
+```typescript
+import { ResponsiveContainer } from 'recharts';
+
+const ChartWrapper = ({ children }) => (
+  <div style={{ width: '100%', height: '400px' }}>
+    <ResponsiveContainer>{children}</ResponsiveContainer>
+  </div>
+);
+```
+
+For financial dashboards, Recharts' combination of React-centric API and SVG flexibility makes it ideal for budget visualization scenarios. The library's 22.3k GitHub stars and active maintenance (last commit April 2025) ensure long-term viability[4][6][8]. 
+
+Both solutions support TypeScript natively and work seamlessly with Next.js 14's app router. For advanced financial needs (candlesticks, Bollinger Bands), consider react-financial-charts[7][9], but it adds complexity (~420kb bundle) unnecessary for basic budget tracking.

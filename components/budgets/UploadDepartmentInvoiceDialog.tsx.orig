@@ -1,0 +1,340 @@
+'use client';
+
+import React, { useState, useEffect, useCallback, useRef, Fragment, ChangeEvent } from 'react';
+import { useForm, SubmitHandler, Controller, FieldValues } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/firebase/config';
+import { useAuth } from '@/context/AuthContext';
+import { Dialog, Transition } from '@headlessui/react';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { departmentInvoiceSchema, DepartmentInvoiceData, DepartmentInvoiceFormData } from '@/lib/departmentInvoiceSchema';
+import SupplierCombobox, { SupplierOption } from '@/components/shared/SupplierCombobox';
+import { XMarkIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import { cn } from '@/lib/utils';
+
+// --- Define Category Structure --- 
+interface Categories {
+    [primary: string]: string[];
+}
+
+const departmentCategories: Categories = {
+    'EG': ['Зарплата - оклад / процент', 'Командировки', 'Проектные', 'Тендерное сопровождение'],
+    'Brand Group': ['Зарплата - оклад / процент', 'Типографии', 'Монтажники', 'Закупки', 'Подрядчики', 'Производство'],
+    'Imagineers': ['Зарплата - оклад / процент', 'Командировки', 'Производство'],
+    'БЭКОФИС': ['HR', 'Офис']
+};
+// --- End Category Structure ---
+
+// Define the props for the dialog component
+interface UploadDepartmentInvoiceDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function UploadDepartmentInvoiceDialog({ isOpen, onClose }: UploadDepartmentInvoiceDialogProps) {
+  const { user, userData } = useAuth();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // State to hold the full SupplierOption object for the combobox
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState<SupplierOption | null>(null);
+
+  const { register, handleSubmit, control, reset, setValue, formState: { errors } } = useForm<DepartmentInvoiceFormData>({
+    // Use the specific FormData type with the resolver
+    resolver: zodResolver(departmentInvoiceSchema),
+    // Default values match the Zod schema expected input before preprocessing
+    defaultValues: {
+      primaryCategory: '',
+      secondaryCategory: '',
+      supplierId: '', // Keep as string ID in form state
+      amount: undefined,
+      dueDate: undefined, // Start with undefined based on schema
+      comment: '',
+    },
+  });
+
+  // Reset form and state when dialog opens/closes
+  const handleClose = useCallback((resetForm = true) => { // Default to reset on close
+    if (!isOpen && resetForm) return; 
+    
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setFileError(null);
+    setServerError(null);
+    setIsSubmitting(false);
+    setSelectedSupplierOption(null); // Reset supplier object state
+    if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
+    reset(); // Reset react-hook-form state
+    onClose(); 
+  }, [isOpen, onClose, reset]);
+
+  useEffect(() => {
+    if (isOpen) {
+       reset({ // Explicitly reset form values on open
+         primaryCategory: '',
+         secondaryCategory: '',
+         supplierId: '',
+         amount: undefined,
+         dueDate: undefined,
+         comment: ''
+       });
+       setSelectedFile(null);
+       setUploadProgress(0);
+       setFileError(null);
+       setServerError(null);
+       setIsSubmitting(false);
+       setSelectedSupplierOption(null);
+       if (fileInputRef.current) {
+           fileInputRef.current.value = "";
+       }
+    }
+  }, [isOpen, reset]);
+
+  // File selection handler
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Basic validation (optional, Zod might handle this later)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+          setFileError("Файл слишком большой (макс. 10MB)");
+          setSelectedFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
+      }
+      setSelectedFile(file);
+      setFileError(null);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  // Form submission handler - Type matches Zod schema output
+  const onSubmit: SubmitHandler<DepartmentInvoiceFormData> = async (data) => {
+    if (!selectedFile) {
+      setFileError('Пожалуйста, выберите файл счета.');
+      return;
+    }
+    if (!user || !userData) {
+      setServerError("Не удалось получить данные пользователя. Пожалуйста, войдите снова.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setServerError(null);
+    setFileError(null);
+    setUploadProgress(0);
+
+    try {
+      const filePath = `departmentInvoices/${user.uid}/${Date.now()}_${selectedFile.name}`;
+      const storageRef = ref(storage, filePath);
+      const uploadTask = uploadBytesResumable(storageRef, selectedFile);
+
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          },
+          (error) => {
+            console.error("Upload failed:", error);
+            setFileError(`Ошибка загрузки файла: ${error.code}`);
+            setIsSubmitting(false);
+            reject(error); 
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              
+              // Data validated by Zod resolver is in `data` argument
+              const invoiceDataToSave: Omit<DepartmentInvoiceData, 'id'> = {
+                  primaryCategory: data.primaryCategory,
+                  secondaryCategory: data.secondaryCategory,
+                  supplierId: data.supplierId,
+                  amount: data.amount, 
+                  comment: data.comment || null,
+                  submitterUid: user.uid,
+                  submitterName: userData.displayName || `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || user.email || 'Неизвестный пользователь',
+                  fileURL: downloadURL,
+                  fileName: selectedFile.name,
+                  uploadedAt: serverTimestamp() as Timestamp, 
+                  status: 'pending_payment',
+                  // Convert Zod's output (Date | null | undefined) to (Timestamp | null)
+                  dueDate: data.dueDate ? Timestamp.fromDate(data.dueDate) : null,
+              };
+
+              await addDoc(collection(db, 'departmentInvoices'), invoiceDataToSave);
+              console.log('Department invoice uploaded successfully!');
+              handleClose(true);
+              resolve(); 
+            } catch (firestoreError) {
+              console.error("Error saving invoice data to Firestore: ", firestoreError);
+              setServerError("Ошибка сохранения данных счета в базе данных.");
+              setIsSubmitting(false);
+              reject(firestoreError);
+            }
+          }
+        );
+      });
+
+    } catch (error) {
+      if (!fileError && !serverError) { 
+          setServerError("Произошла непредвиденная ошибка при загрузке.");
+      }
+      console.error("Overall submission error: ", error);
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={() => handleClose(false)}> 
+        <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
+              <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center">
+                  Загрузить счет для отдела
+                  <button type="button" className="p-1 rounded-md text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none" onClick={() => handleClose(false)} aria-label="Закрыть">
+                      <XMarkIcon className="h-5 w-5"/>
+                  </button>
+                </Dialog.Title>
+                
+                <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
+                    {/* Primary Category */}
+                    <div>
+                      <Label htmlFor="primaryCategory">Основная категория *</Label>
+                      <Input id="primaryCategory" {...register("primaryCategory")} placeholder="EG, Brand Group..." className="mt-1" />
+                      {errors.primaryCategory && <p className="text-sm text-red-600 mt-1">{errors.primaryCategory.message}</p>}
+                    </div>
+
+                    {/* Secondary Category */}
+                    <div>
+                      <Label htmlFor="secondaryCategory">Дополнительная категория *</Label>
+                      <Input id="secondaryCategory" {...register("secondaryCategory")} placeholder="Зарплата, HR..." className="mt-1" />
+                      {errors.secondaryCategory && <p className="text-sm text-red-600 mt-1">{errors.secondaryCategory.message}</p>}
+                    </div>
+
+                    {/* Supplier */}
+                    <div>
+                      <Label htmlFor="supplierId">Поставщик *</Label>
+                      <Controller
+                        name="supplierId"
+                        control={control}
+                        render={({ field }) => (
+                           <SupplierCombobox 
+                                // Pass the SupplierOption object to the combobox
+                                value={selectedSupplierOption} 
+                                onChange={(supplierOption) => {
+                                    setSelectedSupplierOption(supplierOption); // Update local state for the object
+                                    field.onChange(supplierOption ? supplierOption.id : ''); // Update form state with just the ID
+                                }}
+                                disabled={isSubmitting}
+                                error={!!errors.supplierId} // Pass error state
+                            />
+                        )}
+                      />
+                      {/* Display Zod error message for supplierId */}
+                      {errors.supplierId && <p className="text-sm text-red-600 mt-1">{errors.supplierId.message}</p>}
+                    </div>
+
+                    {/* Amount */}
+                    <div>
+                      <Label htmlFor="amount">Сумма *</Label>
+                      {/* Registering directly with Zod preprocess handling parseFloat */}
+                      <Input id="amount" type="number" step="0.01" {...register("amount")} placeholder="10000.00" className="mt-1" />
+                      {errors.amount && <p className="text-sm text-red-600 mt-1">{errors.amount.message}</p>}
+                    </div>
+
+                    {/* Due Date */}
+                    <div>
+                      <Label htmlFor="dueDate">Срок оплаты (необязательно)</Label>
+                      {/* Use Controller for date input to handle Date object */}
+                      <Controller
+                          name="dueDate"
+                          control={control}
+                          render={({ field }) => (
+                              <Input 
+                                  id="dueDate" 
+                                  type="date" 
+                                  className="mt-1" 
+                                  // Format Date object to YYYY-MM-DD for input value
+                                  value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''} 
+                                  onChange={(e) => {
+                                      // Convert input string back to Date or null/undefined for Zod
+                                      field.onChange(e.target.value ? new Date(e.target.value) : undefined);
+                                  }}
+                                  ref={field.ref} // Pass ref
+                                  disabled={isSubmitting}
+                              />
+                          )}
+                      />
+                      {errors.dueDate && <p className="text-sm text-red-600 mt-1">{errors.dueDate.message}</p>}
+                    </div>
+
+                    {/* Comment */}
+                    <div>
+                      <Label htmlFor="comment">Комментарий (необязательно)</Label>
+                      <Input id="comment" {...register("comment")} placeholder="Назначение платежа..." className="mt-1" />
+                      {errors.comment && <p className="text-sm text-red-600 mt-1">{errors.comment.message}</p>}
+                    </div>
+
+                    {/* File Upload */}
+                    <div>
+                        <Label htmlFor="invoiceFile" className={cn("flex items-center justify-center cursor-pointer border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-md p-4 text-center hover:border-primary-500 transition-colors", fileError && "border-red-500")}>
+                            <ArrowUpTrayIcon className="h-5 w-5 mr-2 text-neutral-500 dark:text-neutral-400"/>
+                            <span className={cn("text-sm", selectedFile ? "text-neutral-800 dark:text-neutral-200" : "text-neutral-500 dark:text-neutral-400")}>
+                                {selectedFile ? selectedFile.name : 'Нажмите или перетащите файл'}
+                            </span>
+                            <Input 
+                                id="invoiceFile" 
+                                type="file" 
+                                onChange={handleFileChange} 
+                                className="hidden" 
+                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.heic" 
+                                ref={fileInputRef} 
+                                disabled={isSubmitting}
+                            />
+                        </Label>
+                        {fileError && <p className="text-sm text-red-600 mt-1">{fileError}</p>}
+                        {uploadProgress > 0 && (
+                            <div className="w-full bg-neutral-200 dark:bg-neutral-600 rounded-full h-1.5 mt-2 overflow-hidden">
+                                <div className="bg-primary-600 h-full rounded-full transition-width duration-300 ease-in-out" style={{ width: `${uploadProgress}%` }}></div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {serverError && (
+                        <p className="text-sm text-red-600 mt-2 text-center bg-red-100 dark:bg-red-900/30 p-2 rounded-md">{serverError}</p>
+                    )}
+
+                    <div className="mt-6 flex justify-end space-x-3 border-t border-neutral-200 dark:border-neutral-700 pt-4">
+                        <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={isSubmitting}>
+                            Отмена
+                        </Button>
+                        <Button type="submit" disabled={isSubmitting || uploadProgress > 0 && uploadProgress < 100}>
+                            {isSubmitting ? (uploadProgress > 0 ? `Загрузка... ${Math.round(uploadProgress)}%` : 'Сохранение...') : 'Загрузить счет'}
+                        </Button>
+                    </div>
+                </form>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  );
+} 

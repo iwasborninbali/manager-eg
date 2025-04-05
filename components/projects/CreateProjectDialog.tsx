@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProjectData } from '@/lib/projectSchema';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/Select';
 // import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog"; // Example using shadcn/ui dialog
 
 // Define the structure for user profiles fetched from Firestore
@@ -99,6 +100,14 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
     }));
   };
 
+  // Specific handler for Radix Select (onValueChange passes value directly)
+  const handleManagerChange = (value: string) => {
+    setFormData(prevData => ({
+        ...prevData,
+        managerid: value
+    }));
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -129,13 +138,30 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
         presentationlink: formData.presentationlink || undefined,
       };
 
-      // Add fields that are set automatically
-      const finalProjectData: ProjectData = {
+      // Add fields that are set automatically AND map/duplicate budget/revenue
+      const budgetValue = formData.budget ? parseFloat(formData.budget) : undefined;
+      const revenueValue = formData.planned_revenue ? parseFloat(formData.planned_revenue) : undefined;
+
+      const finalProjectData: Omit<ProjectData, 'budget'> & { // Explicitly omit original budget
+        planned_budget?: number;
+        actual_budget?: number;
+        planned_revenue?: number;
+        actual_revenue?: number;
+        status: string;
+        createdAt: Timestamp;
+        updatedAt: Timestamp;
+      } = {
           ...projectData,
+          planned_budget: budgetValue,   // Set planned_budget from form's budget
+          actual_budget: budgetValue,    // Set actual_budget from form's budget
+          planned_revenue: revenueValue, // Keep planned_revenue from form
+          actual_revenue: revenueValue,  // Set actual_revenue from form's planned_revenue
           status: 'planning', // Set default status
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (finalProjectData as any).budget;
 
       // Add the document to the 'projects' collection
       const projectsColRef = collection(db, 'projects');
@@ -145,10 +171,15 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
       onSuccess(docRef.id); // Pass the new project ID back
       onClose(); // Close dialog on success
 
-    } catch (err) {
-      console.error("Error creating project:", err);
-      setError("Failed to create project. Please check the details and try again.");
-      // Keep the dialog open if there is an error
+    } catch (error: unknown) {
+      console.error("Error creating project:", error);
+      let errorMessage = "Произошла ошибка при создании проекта.";
+      if (error instanceof Error) {
+        errorMessage += ` ${error.message}`;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -175,126 +206,121 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
         
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {/* Project Number and Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input 
-                type="text" 
+                label="Номер проекта" 
                 id="number" 
                 name="number" 
                 value={formData.number} 
                 onChange={handleChange} 
-                label="Номер проекта"
               />
-              
               <Input 
-                type="text" 
+                label="Название проекта *" 
                 id="name" 
                 name="name" 
                 value={formData.name} 
                 onChange={handleChange} 
-                label="Название проекта *" 
                 required
                 error={!formData.name ? "Обязательное поле" : undefined}
               />
             </div>
             
+            {/* Customer */}
             <Input 
-              type="text" 
+              label="Клиент" 
               id="customer" 
               name="customer" 
               value={formData.customer} 
               onChange={handleChange} 
-              label="Клиент"
             />
             
+            {/* Budget and Revenue */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label htmlFor="budget" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Себестоимость (RUB)
-              </label>
-              <Input
-                type="number" 
-                id="budget" 
-                name="budget" 
-                value={formData.budget} 
-                onChange={handleChange} 
-                leftElement={<span className="text-sm">₽</span>}
-              />
-              
-              <Input 
-                type="number" 
-                id="planned_revenue" 
-                name="planned_revenue" 
-                value={formData.planned_revenue} 
-                onChange={handleChange} 
-                label="Запланированный доход" 
-                leftElement={<span className="text-sm">₽</span>}
-              />
+               <Input 
+                 label="Бюджет (RUB)"
+                 type="number" 
+                 id="budget" 
+                 name="budget" 
+                 value={formData.budget} 
+                 onChange={handleChange} 
+                 leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
+               />
+               <Input 
+                 label="Выручка (RUB)" // Changed label
+                 type="number" 
+                 id="planned_revenue" 
+                 name="planned_revenue" 
+                 value={formData.planned_revenue} 
+                 onChange={handleChange} 
+                 leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
+               />
             </div>
             
+            {/* Manager and Due Date */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="managerid" className="text-sm font-medium leading-none">
+              {/* Manager Select */}
+              <div className="flex flex-col space-y-1.5"> {/* Wrapper for label and select */}
+                <label htmlFor="managerid" className="text-sm font-medium leading-none text-neutral-900 dark:text-neutral-100">
                   Менеджер проекта *
                 </label>
-                <select
-                  id="managerid"
-                  name="managerid"
-                  value={formData.managerid}
-                  onChange={handleChange}
+                <Select 
+                  name="managerid" 
+                  value={formData.managerid} 
+                  onValueChange={handleManagerChange} // Use onValueChange
                   required
-                  className={`flex h-10 w-full rounded-lg border bg-white dark:bg-neutral-900 px-3 py-2 text-sm transition-colors
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-0
-                    disabled:cursor-not-allowed disabled:opacity-50
-                    ${!formData.managerid ? 'border-error-500 focus-visible:ring-error-500' : 'border-neutral-200 dark:border-neutral-700 focus-visible:border-primary-500'}`}
+                  disabled={loading} 
                 >
-                  <option value="" disabled>-- Выберите менеджера --</option>
-                  {managers.map(manager => (
-                    <option key={manager.uid} value={manager.uid}>
-                      {manager.first_name || 'N/A'} {manager.last_name || ''}
-                    </option>
-                  ))}
-                </select>
-                {!formData.managerid && <p className="text-xs text-error-500">Обязательное поле</p>}
-                {loading && managers.length === 0 && <p className="text-xs text-neutral-500">Загрузка списка менеджеров...</p>}
+                  {/* Wrap options in SelectTrigger and SelectContent as per Radix structure */}
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Выберите менеджера" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* <option value="" disabled>Выберите менеджера</option> // Remove standard option */} 
+                    {managers.map(manager => (
+                      <SelectItem key={manager.uid} value={manager.uid}>
+                        {`${manager.first_name || ''} ${manager.last_name || ''} (${manager.uid.substring(0, 5)}...)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {error && <p className="text-xs text-error-600 dark:text-error-400 mt-1">{error}</p>}
               </div>
-              
+
+              {/* Due Date Input */}
               <Input 
+                label="Срок сдачи *" 
                 type="date" 
                 id="duedate" 
                 name="duedate" 
                 value={formData.duedate} 
                 onChange={handleChange} 
-                label="Дата завершения *" 
                 required
                 error={!formData.duedate ? "Обязательное поле" : undefined}
               />
             </div>
             
-            <Input 
-              type="url" 
-              id="estimatecostlink" 
-              name="estimatecostlink" 
-              value={formData.estimatecostlink} 
-              onChange={handleChange} 
-              label="Ссылка на смету" 
-              placeholder="https://"
-            />
-            
-            <Input 
-              type="url" 
-              id="presentationlink" 
-              name="presentationlink" 
-              value={formData.presentationlink} 
-              onChange={handleChange} 
-              label="Ссылка на презентацию" 
-              placeholder="https://"
-            />
+            {/* Links */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input 
+                label="Ссылка на смету"
+                id="estimatecostlink" 
+                name="estimatecostlink" 
+                value={formData.estimatecostlink} 
+                onChange={handleChange} 
+              />
+              <Input 
+                label="Ссылка на презентацию" 
+                id="presentationlink" 
+                name="presentationlink" 
+                value={formData.presentationlink} 
+                onChange={handleChange} 
+              />
+            </div>
 
             {/* Error Message */}
             {error && (
-              <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-700 dark:bg-error-900/50 dark:text-error-300">
-                <p className="font-medium">Ошибка</p>
-                <p>{error}</p>
-              </div>
+              <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
             )}
           </CardContent>
           

@@ -1,23 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, ChangeEvent, FormEvent, Fragment } from 'react';
+import React, { useState, ChangeEvent, FormEvent, Fragment } from 'react';
 import { Dialog, Transition, Switch as HeadlessSwitch } from '@headlessui/react';
 import { db, storage } from '@/firebase/config'; // Ensure storage is imported
-import { collection, query, getDocs, Timestamp, addDoc, serverTimestamp, where, doc, setDoc } from 'firebase/firestore';
+import { collection, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore'; // Removed unused query, getDocs
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Restore storage imports
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { XMarkIcon } from '@heroicons/react/24/solid';
-import { InvoiceData } from '@/lib/invoiceSchema'; // Import the schema
 import SupplierCombobox, { SupplierOption } from '@/components/shared/SupplierCombobox';
-
-// Define the structure for projects fetched for the dropdown
-interface ProjectOption {
-  id: string;
-  number?: string; // Use project number for display
-  name?: string;
-}
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
 
 // Define the structure for the form data
 interface InvoiceFormData {
@@ -53,46 +46,14 @@ export default function UploadInvoiceDialog({ isOpen, onClose, onSuccess, projec
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+
   const [formData, setFormData] = useState<InvoiceFormData>(initialFormData);
 
   // State for the selected supplier
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierOption | null>(null);
   const [fileError, setFileError] = useState<string | null>(null); // Restore fileError state
 
-  // Fetch projects when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      const fetchProjects = async () => {
-        setLoading(true); // Use general loading for projects
-        setError(null);
-        try {
-          const projectsRef = collection(db, 'projects');
-          const projQ = query(projectsRef); 
-          const projSnapshot = await getDocs(projQ);
-          const fetchedProjects: ProjectOption[] = [];
-          projSnapshot.forEach((doc) => {
-            fetchedProjects.push({ id: doc.id, ...doc.data() } as ProjectOption);
-          });
-          setProjects(fetchedProjects);
-        } catch (err) {
-          console.error("Error fetching projects:", err);
-          setError("Не удалось загрузить список проектов.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchProjects();
-    } else {
-      // Reset state when dialog closes
-      setProjects([]);
-      setFormData(initialFormData);
-      setSelectedSupplier(null);
-      setError(null);
-      setFileError(null); // Reset file error on close
-      setLoading(false);
-    }
-  }, [isOpen]);
+  const { user, userData } = useAuth(); // Get user data
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -130,11 +91,13 @@ export default function UploadInvoiceDialog({ isOpen, onClose, onSuccess, projec
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    setFileError(null); // Clear file error on submit attempt
+    setFileError(null);
     
-    // Log projectId at the start of submit
-    console.log("[UploadInvoiceDialog] handleSubmit started with projectId:", projectId);
-
+    // Add validation for user data
+    if (!user || !userData) {
+        setError("Ошибка: не удалось определить пользователя. Попробуйте войти снова.");
+        return;
+    }
     if (!projectId || !selectedSupplier || !formData.amount || !formData.file) {
       if (!selectedSupplier) setError("Пожалуйста, выберите поставщика из списка.");
       else if (!formData.amount) setError("Пожалуйста, укажите сумму счета.");
@@ -173,6 +136,8 @@ export default function UploadInvoiceDialog({ isOpen, onClose, onSuccess, projec
         fileName: file.name, // Use actual file name
         status: 'pending_payment',
         uploadedAt: serverTimestamp(),
+        submitterUid: user.uid,
+        submitterName: userData.displayName || userData.first_name || user.email || 'Неизвестный пользователь' // Use best available name
       };
 
       // Remove null fields
@@ -201,7 +166,7 @@ export default function UploadInvoiceDialog({ isOpen, onClose, onSuccess, projec
 
   return (
     <Transition appear show={isOpen}>
-      <Dialog as="div" className="relative z-50" onClose={() => !loading && onClose()}>
+      <Dialog as="div" className="relative z-[60]" onClose={() => !loading && onClose()}>
         {/* Overlay */}
         <Transition.Child
           as={Fragment}

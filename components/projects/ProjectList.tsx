@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, Timestamp } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, query, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/config'; // Adjust the path as necessary
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button'; // Import Button
-import { ArrowUpTrayIcon } from '@heroicons/react/24/outline'; // Import icon for upload button
+import { ChartBarIcon } from '@heroicons/react/24/outline'; // Import icon for financials button
+import { DocumentDuplicateIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button
 import { cn } from '@/lib/utils';
-import ProjectDetailsDialog from './ProjectDetailsDialog'; // Import the details dialog component
-import UploadInvoiceDialog from '../invoices/UploadInvoiceDialog'; // Import the invoice dialog component
+import ProjectFinancialsDialog from './ProjectFinancialsDialog';
+import ProjectDetailsDialog from './ProjectDetailsDialog';
+import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
+import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
 
 // Define the structure of a Project document
 interface Project {
   id: string; // Firestore document ID
-  budget?: number;
+  actual_budget?: number;    // Added back (was budget)
+  planned_budget?: number;   // Added back
   createdAt?: Timestamp;
   customer?: string;
   duedate?: Timestamp;
@@ -23,10 +27,11 @@ interface Project {
   name?: string;
   number?: string;
   planned_revenue?: number;
+  actual_revenue?: number;   // Added back
   presentationlink?: string;
   status?: string;
   updatedAt?: Timestamp;
-  // Add other fields if necessary
+  description?: string;      // Added back
 }
 
 // Function to format Firestore Timestamps (optional, but recommended)
@@ -54,39 +59,113 @@ const ProjectList: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMounted = useRef(false); // Ref to track mount status for listener
   
   // State for Details Dialog
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  // State for Invoice Dialog
-  const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
-  // Store only the ID needed for the invoice dialog context
-  const [selectedProjectIdForInvoice, setSelectedProjectIdForInvoice] = useState<string | null>(null);
+  // State for Financials Dialog
+  const [isFinancialsOpen, setIsFinancialsOpen] = useState(false);
+  const [selectedProjectIdForFinancials, setSelectedProjectIdForFinancials] = useState<string | null>(null);
 
+  // State for Closing Docs Dialog
+  const [isClosingDocsOpen, setIsClosingDocsOpen] = useState(false);
+  const [selectedProjectForClosingDocs, setSelectedProjectForClosingDocs] = useState<Project | null>(null);
+
+  // Effect for Initial Load
   useEffect(() => {
-    const q = query(collection(db, 'projects'));
+    isMounted.current = true; // Mark as mounted
+    let didCancel = false; // Flag to prevent state update on unmount
 
-    const unsubscribe = onSnapshot(q, 
+    const fetchInitialProjects = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const q = query(collection(db, 'projects'));
+        const querySnapshot = await getDocs(q);
+        if (!didCancel) {
+          const projectsData: Project[] = [];
+          querySnapshot.forEach((doc) => {
+            projectsData.push({ id: doc.id, ...doc.data() } as Project);
+          });
+          console.log("Initial projects fetched successfully.");
+          setProjects(projectsData);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching initial projects: ", err);
+        if (!didCancel) {
+          setError("Failed to load initial projects.");
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchInitialProjects();
+
+    // Cleanup function
+    return () => {
+      didCancel = true;
+      isMounted.current = false; // Mark as unmounted
+      console.log("ProjectList unmounted, initial fetch effect cleanup.");
+    };
+  }, []); // Runs once on mount
+
+  // Effect for Real-time Updates (runs after initial load)
+  useEffect(() => {
+    // Ensure this runs only after mount and initial load is attempted
+    if (!isMounted.current || loading) {
+       // Do nothing if not mounted or initial load is still in progress
+       // This check might be redundant due to the [] dependency array in the first effect,
+       // but provides extra safety.
+      return;
+    }
+
+    console.log("Setting up Firestore listener for real-time updates.");
+    const q = query(collection(db, 'projects'));
+    const unsubscribe = onSnapshot(q,
       (querySnapshot) => {
+        // Prevent updates during initial mount/load phase (handled by first effect)
+         if (!isMounted.current) return; 
+
+        console.log("Firestore listener received update.");
         const projectsData: Project[] = [];
         querySnapshot.forEach((doc) => {
           projectsData.push({ id: doc.id, ...doc.data() } as Project);
         });
-        setProjects(projectsData);
-        setLoading(false);
-        setError(null);
+
+        // Update state only with subsequent changes, using comparison
+        setProjects(currentProjects => {
+          if (
+            projectsData.length !== currentProjects.length ||
+            !projectsData.every((newProj, index) => newProj.id === currentProjects[index]?.id)
+          ) {
+            console.log("Firestore data changed, updating projects state via listener.");
+            return projectsData;
+          }
+          return currentProjects;
+        });
+        // No need to set loading/error here, handled by initial load
       },
       (err) => {
-        console.error("Error fetching projects: ", err);
-        setError("Failed to load projects.");
-        setLoading(false);
+        // Handle listener errors (optional: update error state if needed)
+        console.error("Error in Firestore listener: ", err);
+         if (isMounted.current) {
+            // Optionally set an error state specific to the listener
+            // setError("Failed to get real-time updates."); 
+         }
       }
     );
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
+    // Cleanup listener on unmount
+    return () => {
+      console.log("Cleaning up Firestore listener.");
+      unsubscribe();
+    };
+  // Depend on `loading` to ensure listener setup after initial load finishes
+  // Or keep empty [] if the isMounted check is deemed sufficient. Let's try with [loading].
+  }, [loading]); 
 
   // Handlers for Details Dialog
   const handleProjectClick = (project: Project) => {
@@ -98,21 +177,27 @@ const ProjectList: React.FC = () => {
     setTimeout(() => setSelectedProject(null), 300); 
   };
 
-  // Handlers for Invoice Dialog
-  const handleOpenInvoiceDialog = (projectId: string, event: React.MouseEvent) => {
+  // Handlers for Financials Dialog
+  const handleOpenFinancialsDialog = (projectId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent triggering card click (details dialog)
-    setSelectedProjectIdForInvoice(projectId);
-    setIsInvoiceDialogOpen(true);
+    setSelectedProjectIdForFinancials(projectId);
+    setIsFinancialsOpen(true);
   };
-  const handleCloseInvoiceDialog = () => {
-    setIsInvoiceDialogOpen(false);
-    setSelectedProjectIdForInvoice(null);
-  };
-  const handleInvoiceSuccess = (invoiceId: string) => {
-    console.log(`Invoice ${invoiceId} uploaded successfully!`);
-    // Optionally show a success notification/toast
+  const handleCloseFinancialsDialog = () => {
+    setIsFinancialsOpen(false);
+    setSelectedProjectIdForFinancials(null);
   };
 
+  // Handlers for Closing Docs Dialog
+  const handleOpenClosingDocsDialog = (project: Project, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card click
+    setSelectedProjectForClosingDocs(project);
+    setIsClosingDocsOpen(true);
+  };
+  const handleCloseClosingDocsDialog = () => {
+    setIsClosingDocsOpen(false);
+    setSelectedProjectForClosingDocs(null);
+  };
 
   if (loading) {
     return (
@@ -144,12 +229,12 @@ const ProjectList: React.FC = () => {
         {projects.map((project) => (
           <div 
             key={project.id} 
-            className="relative group" // Needed for potential absolute positioning inside card if desired
+            className="relative group" 
           >
             <Card 
               variant="outline" 
               className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300 cursor-pointer" 
-              onClick={() => handleProjectClick(project)} // Open details on card click
+              onClick={() => handleProjectClick(project)}
             >
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -169,27 +254,52 @@ const ProjectList: React.FC = () => {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3 flex-grow"> {/* flex-grow to push footer down */}
-                <div className="text-sm text-neutral-600 dark:text-neutral-400">
-                  <p><span className="font-medium text-neutral-700 dark:text-neutral-300">Бюджет:</span> {formatCurrency(project.budget)}</p>
-                  <p><span className="font-medium text-neutral-700 dark:text-neutral-300">Выручка (план):</span> {formatCurrency(project.planned_revenue)}</p>
+              <CardContent className="space-y-3 flex-grow">
+                <div className="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Бюджет (План):</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Бюджет (Факт):</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
+                  </div>
+                   <div className="flex justify-between">
+                    <span>Выручка (План):</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Выручка (Факт):</span>
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue)}</span>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="text-xs text-neutral-500 dark:text-neutral-400 flex justify-between items-center pt-4 border-t border-neutral-100 dark:border-neutral-700">
                 <div className="flex flex-col">
                   <span>Срок: {formatDate(project.duedate)}</span>
-                  {/* <span>Создан: {formatDate(project.createdAt)}</span> */}
                 </div>
-                 {/* Upload Invoice Button */}
-                 <Button 
-                   variant="ghost" 
-                   size="icon" 
-                   className="text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400 -mr-2" 
-                   onClick={(e) => handleOpenInvoiceDialog(project.id, e)} // Pass project ID and event
-                   aria-label="Загрузить счет"
-                 >
-                   <ArrowUpTrayIcon className="h-5 w-5" />
-                 </Button>
+                <div className="flex items-center space-x-0.5"> {/* Adjusted spacing */}
+                    {/* Closing Docs Button */}
+                    <Button 
+                       variant="ghost" size="icon" 
+                       className="text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400"
+                       onClick={(e) => handleOpenClosingDocsDialog(project, e)}
+                       aria-label="Закрывающие документы"
+                       title="Закрывающие документы"
+                    >
+                       <DocumentDuplicateIcon className="h-5 w-5" />
+                    </Button>
+                    {/* Financials Button */}
+                    <Button 
+                       variant="ghost" size="icon" 
+                       className="text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400"
+                       onClick={(e) => handleOpenFinancialsDialog(project.id, e)}
+                       aria-label="Финансовые показатели"
+                       title="Финансовые показатели"
+                    >
+                       <ChartBarIcon className="h-5 w-5" />
+                    </Button>
+                </div>
               </CardFooter>
             </Card>
            </div>
@@ -203,16 +313,23 @@ const ProjectList: React.FC = () => {
         project={selectedProject}
       />
 
-       {/* Render the Invoice Upload Dialog */} 
-       {/* Only render when needed to fetch projects only when open */} 
-       {isInvoiceDialogOpen && selectedProjectIdForInvoice && (
-         <UploadInvoiceDialog
-            isOpen={isInvoiceDialogOpen} 
-            onClose={handleCloseInvoiceDialog} 
-            onSuccess={handleInvoiceSuccess}
-            // Pass project ID which is now required
-            projectId={selectedProjectIdForInvoice} 
-         />
+       {/* Render the Financials Dialog */} 
+       {isFinancialsOpen && (
+           <ProjectFinancialsDialog
+               isOpen={isFinancialsOpen}
+               onClose={handleCloseFinancialsDialog}
+               projectId={selectedProjectIdForFinancials}
+           />
+       )}
+
+       {/* Render the Closing Docs Dialog */} 
+       {selectedProjectForClosingDocs && (
+           <ProjectClosingDocsDialog
+               isOpen={isClosingDocsOpen}
+               onClose={handleCloseClosingDocsDialog}
+               projectId={selectedProjectForClosingDocs.id}
+               projectName={selectedProjectForClosingDocs.name}
+           />
        )}
     </>
   );
