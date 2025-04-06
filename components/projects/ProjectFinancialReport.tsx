@@ -124,6 +124,19 @@ const BudgetProgressBar: React.FC<{ spent: number; budget: number | undefined }>
 };
 
 const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data }) => {
+    // Memoize supplier spending calculation
+    const supplierSpending = useMemo(() => {
+        // If data or invoices are not available yet, return empty array
+        if (!data?.invoices) return []; 
+        const spending: { [name: string]: number } = {};
+        data.invoices.forEach(invoice => {
+            if (invoice.status !== 'cancelled' && invoice.amount && invoice.supplierName) {
+                spending[invoice.supplierName] = (spending[invoice.supplierName] || 0) + invoice.amount;
+            }
+        });
+        return Object.entries(spending).sort(([, a], [, b]) => b - a); // Sort descending by amount
+    }, [data?.invoices]); // Depend on data.invoices
+
     // Ensure data exists before destructuring
     if (!data || !data.project || !data.financialSummary || !data.invoiceSummary) {
         return <div>Ошибка: Неполные данные для отчета.</div>; // Or a loading state/placeholder
@@ -174,18 +187,6 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
         insightTextNeutral: { color: '#4b5563' },
     };
     // --- End Styles ---
-
-    // Memoize supplier spending calculation
-    const supplierSpending = useMemo(() => {
-        const spending: { [name: string]: number } = {};
-        invoices.forEach(invoice => {
-            // Only include non-cancelled, paid, or potentially overdue invoices in spending
-            if (invoice.status !== 'cancelled' && invoice.amount && invoice.supplierName) {
-                spending[invoice.supplierName] = (spending[invoice.supplierName] || 0) + invoice.amount;
-            }
-        });
-        return Object.entries(spending).sort(([, a], [, b]) => b - a); // Sort descending by amount
-    }, [invoices]);
 
     return (
         <div style={styles.body}>

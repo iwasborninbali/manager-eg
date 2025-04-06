@@ -2,7 +2,15 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, DocumentTextIcon, ClockIcon, CheckCircleIcon, ExclamationTriangleIcon, UserCircleIcon, DocumentArrowDownIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
+import { 
+    XMarkIcon, 
+    DocumentArrowUpIcon, 
+    ClockIcon,
+    CheckCircleIcon,
+    ExclamationTriangleIcon,
+    UserCircleIcon,
+    DocumentArrowDownIcon
+} from '@heroicons/react/24/solid';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, documentId, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';

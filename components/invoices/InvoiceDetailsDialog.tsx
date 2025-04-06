@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 // Re-use or import shared interfaces and helpers
 // Assuming Invoice and Project interfaces exist elsewhere or define them here
-interface Invoice {
+export interface Invoice {
   id: string;
   amount?: number;
   dueDate?: Timestamp;
@@ -27,6 +27,7 @@ interface Invoice {
 }
 
 // Assuming Project interface is defined (adjust if needed)
+// Consider exporting this too if needed elsewhere
 interface Project {
   id: string;
   name?: string;
@@ -35,6 +36,7 @@ interface Project {
 }
 
 // Interface for Supplier data from Firestore
+// Consider exporting this too
 interface Supplier {
     id: string;
     name?: string;
@@ -42,6 +44,7 @@ interface Supplier {
 }
 
 // Define ClosingDocument interface (align with ProjectDetailsDialog)
+// Consider exporting this too
 interface ClosingDocument {
     id: string;
     projectId: string;

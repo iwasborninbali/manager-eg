@@ -3,31 +3,35 @@
 import React, { useState } from 'react';
 import DepartmentInvoiceList, { DepartmentInvoice } from '@/components/budgets/DepartmentInvoiceList'; // Import interface
 import UploadDepartmentInvoiceDialog from '@/components/budgets/UploadDepartmentInvoiceDialog';
-import InvoiceDetailsDialog from '@/components/invoices/InvoiceDetailsDialog'; // Import Invoice Details Dialog
+import InvoiceDetailsDialog, { Invoice } from '@/components/invoices/InvoiceDetailsDialog'; // Revert Import
 import { Button } from '@/components/ui/Button';
 import { DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
-// Simple mapping function (adjust based on actual DepartmentInvoice structure)
-const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): any /* Use a specific type if possible */ => {
+// Updated mapping function to return the imported Invoice type (or null)
+const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): Invoice | null => {
     if (!deptInvoice) return null;
-    // Map fields from DepartmentInvoice to what InvoiceDetailsDialog expects
-    // This is a placeholder, adjust according to your actual data structure
+
+    // Ensure the status is one of the allowed values or undefined
+    const validStatuses = ['pending_payment', 'paid', 'overdue', 'cancelled'];
+    const mappedStatus = validStatuses.includes(deptInvoice.status ?? '') 
+        ? deptInvoice.status as Invoice['status'] // Cast if valid
+        : undefined; // Default to undefined if not valid
+
     return {
-        id: deptInvoice.id,
+        id: deptInvoice.id, // Assuming DepartmentInvoice has id
         amount: deptInvoice.amount,
-        supplierId: deptInvoice.supplierId, // Assuming supplierId exists
-        status: deptInvoice.status ?? 'pending_payment', // Map status or use default
+        supplierId: deptInvoice.supplierId,
+        status: mappedStatus,
         dueDate: deptInvoice.dueDate instanceof Timestamp ? deptInvoice.dueDate : undefined,
         fileURL: deptInvoice.fileURL,
         fileName: deptInvoice.fileName,
-        uploadedAt: deptInvoice.uploadedAt instanceof Timestamp ? deptInvoice.uploadedAt : Timestamp.now(), // Provide default if needed
-        comment: deptInvoice.comment,
-        // project details might be null or fetched separately if needed
-        project: null,
-        // closingDocuments need to be fetched separately if you want to show them here
-        closingDocuments: [],
-        // Add other necessary fields from Invoice interface
+        uploadedAt: deptInvoice.uploadedAt instanceof Timestamp ? deptInvoice.uploadedAt : Timestamp.now(),
+        comment: deptInvoice.comment ?? undefined, // Map null comment to undefined
+        // Fields required by Invoice interface but not directly in DepartmentInvoice
+        projectId: undefined, // Department invoices don't belong to a project
+        invoiceNumber: undefined, // Assuming not available
+        // Need to check Invoice type definition for other required fields
     };
 };
 
@@ -35,8 +39,8 @@ const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): any /* 
 export default function DepartmentBudgetsPage() {
   // State for upload dialog
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  // State for Invoice Details
-  const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null); // Use 'any' or a more specific type
+  // State for Invoice Details - use the imported Invoice type
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // Handler to open details dialog
@@ -82,10 +86,9 @@ export default function DepartmentBudgetsPage() {
             isOpen={isDetailsOpen}
             onClose={handleCloseDetails}
             invoice={selectedInvoice}
-            project={selectedInvoice.project} // Pass project details if mapped
-            // Pass closing docs and loading state if fetched/mapped
-            closingDocuments={selectedInvoice.closingDocuments}
-            loadingClosingDocs={false} // Assuming not loaded here for now
+            project={null} // Pass null explicitly
+            closingDocuments={[]} // Pass empty array explicitly
+            loadingClosingDocs={false}
         />
       )}
     </main>

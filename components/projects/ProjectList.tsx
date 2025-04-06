@@ -14,7 +14,7 @@ import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
 import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
-import { CalendarDaysIcon, BanknotesIcon, ArrowTrendingUpIcon, TagIcon } from '@heroicons/react/24/outline'; // Add icons for card details
+import { CalendarDaysIcon, BanknotesIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Add icons for card details
 
 // Define the structure of a Project document
 interface Project {
