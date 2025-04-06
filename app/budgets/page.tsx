@@ -30,7 +30,6 @@ const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): Invoice
         comment: deptInvoice.comment ?? undefined, // Map null comment to undefined
         // Fields required by Invoice interface but not directly in DepartmentInvoice
         projectId: undefined, // Department invoices don't belong to a project
-        invoiceNumber: undefined, // Assuming not available
         // Need to check Invoice type definition for other required fields
     };
 };
