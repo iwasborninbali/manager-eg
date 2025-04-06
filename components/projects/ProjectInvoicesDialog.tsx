@@ -2,7 +2,7 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, DocumentTextIcon, ClockIcon, CheckCircleIcon, ExclamationTriangleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, DocumentTextIcon, ClockIcon, CheckCircleIcon, ExclamationTriangleIcon, UserCircleIcon, DocumentArrowDownIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import { collection, query, where, onSnapshot, orderBy, Timestamp, documentId, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';
@@ -90,7 +90,7 @@ const ProjectInvoicesDialog: React.FC<ProjectInvoicesDialogProps> = ({ isOpen, o
     const [isInvoiceDetailsOpen, setIsInvoiceDetailsOpen] = useState(false);
     
     // Combined loading state might be useful later if needed
-    const isLoading = loadingInvoices || loadingSuppliers || loadingAllClosingDocs; // Keep this for UI disabling
+    const isLoading = loadingInvoices || loadingSuppliers; // Simplified loading for display
     const generalError = error;
 
     // Effect to fetch ONLY invoices
@@ -322,73 +322,81 @@ const ProjectInvoicesDialog: React.FC<ProjectInvoicesDialogProps> = ({ isOpen, o
                                 <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center mb-4">
                                     <span>Счета: {projectName || 'Загрузка...'}</span>
                                     <div className="flex items-center space-x-2">
-                                        {/* Upload Button */} 
-                                        <Button 
-                                            variant="secondary" // Changed from primary
-                                            size="sm" 
-                                            onClick={handleOpenUploadInvoice} 
-                                            // Removed redundant classes, use variant styles
-                                            title="Загрузить счет"
+                                        {/* Icon-only Upload Button */}
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            onClick={handleOpenUploadInvoice}
+                                            title="Добавить счет"
                                             disabled={isLoading}
                                         >
-                                            <DocumentTextIcon className="h-5 w-5 mr-1.5" />
-                                            <span>Добавить</span> { /* Optional text */}
+                                            <span className="sr-only">Добавить счет</span>
+                                            <DocumentArrowUpIcon className="h-5 w-5" />
                                         </Button>
                                         {/* Close Button */} 
-                                        <button
+                                        <Button
                                             type="button"
-                                            className="p-1 rounded-md text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-neutral-500 dark:text-neutral-400"
                                             onClick={handleClose}
-                                            // Removed disabled={isLoading} to allow closing anytime
                                             aria-label="Закрыть"
                                         >
                                             <XMarkIcon className="h-5 w-5" />
-                                        </button>
+                                        </Button>
                                     </div>
                                 </Dialog.Title>
 
                                 {/* Invoice List Area */} 
-                                <div className="min-h-[400px]">
+                                <div className="min-h-[400px] border-t border-neutral-200 dark:border-neutral-700 pt-4">
                                     {/* Loading State */}
-                                    {(loadingInvoices || (invoices.length > 0 && loadingSuppliers)) && <p className="text-sm text-center py-4 text-neutral-500 dark:text-neutral-400">Загрузка данных...</p>}
+                                    {isLoading && <p className="text-sm text-center py-4 text-neutral-500 dark:text-neutral-400">Загрузка данных...</p>}
                                     {/* Error State */} 
                                     {generalError && <p className="text-sm text-center py-4 text-error-600 dark:text-error-400">{generalError}</p>}
                                     
                                     {/* Content Area */} 
-                                    {!loadingInvoices && !loadingSuppliers && !generalError && (
+                                    {!isLoading && !generalError && (
                                         invoices.length > 0 ? (
-                                            <ul className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                                            <ul className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                                                 {invoices.map((invoice) => {
-                                                    // Get supplier name safely
-                                                    const supplierName = invoice.supplierId ? (supplierMap[invoice.supplierId]?.name || 'Поставщик не указан') : 'Не указан';
-                                                    
+                                                    const supplierName = invoice.supplierId ? (supplierMap[invoice.supplierId]?.name || (loadingSuppliers ? 'Загрузка...' : 'Поставщик?' )) : 'Не указан';
+                                                    // Get associated closing documents count for this invoice
+                                                    const closingDocsCount = allClosingDocs.filter(doc => doc.invoiceId === invoice.id).length;
+
                                                     return (
-                                                        // Use invoice.id which is now guaranteed
-                                                        <li key={invoice.id} className="py-3 px-4 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 rounded-md border border-neutral-200 dark:border-neutral-700/60 transition-colors duration-150 group shadow-sm">
+                                                        <li 
+                                                           key={invoice.id} 
+                                                           className="py-3 px-4 bg-white dark:bg-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 rounded-lg border border-neutral-200 dark:border-neutral-700/60 transition-colors duration-150 group shadow-sm cursor-pointer"
+                                                           onClick={() => handleInvoiceClick(invoice)}
+                                                           title="Посмотреть детали счета"
+                                                        >
                                                             <div className="flex items-start justify-between flex-wrap gap-2">
-                                                                {/* Invoice Main Info (Clickable) */} 
-                                                                <div className="flex-1 min-w-0 cursor-pointer group" onClick={() => handleInvoiceClick(invoice)} title="Посмотреть детали счета">
-                                                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">{supplierName}</p>
-                                                                    <p className="text-sm text-neutral-700 dark:text-neutral-300">
+                                                                {/* Invoice Main Info */} 
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400" title={supplierName}>{supplierName}</p>
+                                                                    <p className="text-base font-medium text-neutral-800 dark:text-neutral-200 mt-0.5">
                                                                         {formatCurrency(invoice.amount)}
                                                                     </p>
-                                                                    {/* Status and Due Date */} 
-                                                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                                                                         Статус: <InvoiceStatusBadge status={invoice.status} /> | Срок: {formatDate(invoice.dueDate)}
                                                                     </p>
-                                                                    {/* Submitter Info */} 
-                                                                     <div className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center mt-1" title={`Загружен: ${formatDate(invoice.uploadedAt)}`}>
+                                                                    <div className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center mt-1.5" title={`Загружен: ${formatDate(invoice.uploadedAt)} пользователем ${invoice.submitterName || 'Неизвестно'}`}>
                                                                         <UserCircleIcon className="h-3.5 w-3.5 mr-1 text-neutral-400"/> 
                                                                         <span className="truncate">{invoice.submitterName || 'Неизвестно'}</span>
                                                                     </div>
-                                                                    {/* Comment */} 
                                                                     {invoice.comment && (
-                                                                        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400 italic truncate" title={invoice.comment}>Комментарий: {invoice.comment}</p>
+                                                                        <p className="mt-1.5 text-xs text-neutral-600 dark:text-neutral-400 italic truncate" title={invoice.comment}>Комм: {invoice.comment}</p>
+                                                                    )}
+                                                                    {/* Closing Docs Indicator */} 
+                                                                    {loadingAllClosingDocs ? (
+                                                                        <span className="mt-1.5 text-xs text-neutral-400 dark:text-neutral-500 block">Загрузка док...</span>
+                                                                    ) : closingDocsCount > 0 && (
+                                                                        <span className="mt-1.5 text-xs text-success-600 dark:text-success-400 font-medium block">Есть закр. док. ({closingDocsCount})</span>
                                                                     )}
                                                                 </div>
-                                                                {/* Actions (Download) */} 
-                                                                <div className="flex-shrink-0 flex items-center">
-                                                                    {invoice.fileURL && (
+                                                                {/* Actions (Download & Details Button) */} 
+                                                                <div className="flex-shrink-0 flex flex-col items-end space-y-1">
+                                                                     {invoice.fileURL && (
                                                                         <a 
                                                                             href={invoice.fileURL} 
                                                                             target="_blank" 
@@ -397,9 +405,11 @@ const ProjectInvoicesDialog: React.FC<ProjectInvoicesDialogProps> = ({ isOpen, o
                                                                             className="p-1.5 rounded-full text-neutral-500 dark:text-neutral-400 hover:bg-blue-100 dark:hover:bg-neutral-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                                                                             title={`Скачать ${invoice.fileName || 'файл'}`}
                                                                         >
-                                                                            <DocumentTextIcon className="h-5 w-5" /> 
+                                                                            <DocumentArrowDownIcon className="h-5 w-5" /> 
                                                                         </a>
                                                                     )}
+                                                                    {/* Optional: Add a dedicated details button if needed, though the whole item is clickable */} 
+                                                                    {/* <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleInvoiceClick(invoice); }}><ChevronRightIcon className="h-4 w-4" /></Button> */} 
                                                                 </div>
                                                             </div>
                                                         </li>
@@ -407,7 +417,6 @@ const ProjectInvoicesDialog: React.FC<ProjectInvoicesDialogProps> = ({ isOpen, o
                                                 })}
                                             </ul>
                                         ) : (
-                                            // No Invoices Message
                                             <p className="text-sm text-center py-4 text-neutral-500 dark:text-neutral-400">Счетов по этому проекту пока нет.</p>
                                         )
                                     )}

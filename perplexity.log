@@ -763,3 +763,326 @@ const ChartWrapper = ({ children }) => (
 For financial dashboards, Recharts' combination of React-centric API and SVG flexibility makes it ideal for budget visualization scenarios. The library's 22.3k GitHub stars and active maintenance (last commit April 2025) ensure long-term viability[4][6][8]. 
 
 Both solutions support TypeScript natively and work seamlessly with Next.js 14's app router. For advanced financial needs (candlesticks, Bollinger Bands), consider react-financial-charts[7][9], but it adds complexity (~420kb bundle) unnecessary for basic budget tracking.
+2025-04-05 11:14:20,546 - INFO - Final query sent to Perplexity AI:
+How to log in to GitHub from the terminal using GitHub CLI (gh)?
+2025-04-05 11:17:19,735 - INFO - Final query sent to Perplexity AI:
+Which version of react-day-picker supports date-fns version 4?
+2025-04-05 11:20:18,328 - INFO - Final query sent to Perplexity AI:
+How to customize icons (like left/right chevron) in react-day-picker v9?
+2025-04-05 11:29:22,513 - INFO - Final query sent to Perplexity AI:
+How to customize icons (like left/right chevron) in react-day-picker v9?
+2025-04-05 11:29:42,134 - INFO - Perplexity research result:
+To customize navigation chevron icons in React Day Picker v9, use the `Chevron` component with orientation-based rendering:
+
+```tsx
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+
+<DayPicker
+  components={{
+    Chevron: ({ orientation, className, ...props }) => {
+      if (orientation === 'left') {
+        return <ChevronLeft className={`${className} w-5 h-5 text-amber-700`} {...props} />;
+      }
+      if (orientation === 'right') {
+        return <ChevronRight className={`${className} w-5 h-5 text-amber-700`} {...props} />;
+      }
+      return null;
+    }
+  }}
+/>
+// Source: Ayush Gandhi's Tutorial
+// URL: https://ayushgandhi.com/blog/customize-react-day-picker
+```
+
+### Key Implementation Details:
+1. **Component Override**: Use the `components` prop to replace the default Chevron[4][7]
+2. **Orientation Handling**: Check `props.orientation` to determine left/right arrows[3][6]
+3. **Styling Control**: Pass className and additional props to maintain default positioning[9]
+
+### Best Practices
+- **RTL Support**: Use CSS transforms when direction changes:
+  ```tsx
+  className={`${className} transform rtl:-scale-x-100`}
+  ```
+- **Icon Libraries**: Works with Lucide, Heroicons, or custom SVGs[1][7]
+- **Props Forwarding**: Always spread remaining props (`...props`) for accessibility[4][9]
+
+### Common Pitfalls
+- ❌ Using deprecated `IconLeft/IconRight` props (removed in v9)[4][7]
+- ❌ Forgetting to handle both LTR and RTL layouts[6]
+- ❌ Overriding essential ARIA labels in navigation buttons[10]
+2025-04-06 12:10:07,229 - INFO - Final query sent to Perplexity AI:
+Какие есть стандартные русские переводы для статусов проектов (planned, in progress, completed, on hold, cancelled)? Также, какие есть лучшие практики для дизайна UI карточек, чтобы сделать их визуально привлекательными?
+2025-04-06 12:10:44,002 - INFO - Final query sent to Perplexity AI:
+Best practices for localizing status badges in React/Tailwind? Also, suggest modern UI/UX improvements for information cards displaying project data (like budget, revenue, status, dates).
+2025-04-06 12:11:03,603 - INFO - Perplexity research result:
+Here's an implementation-focused solution combining modern practices for localization and card UX:
+
+```jsx
+// Localized Status Badge Component
+// Source: Material Tailwind
+// URL: https://www.material-tailwind.com/docs/react/badge
+import { Badge } from "@material-tailwind/react";
+import { useTranslation } from 'react-i18next';
+
+export function LocalizedBadge({ status }) {
+  const { t } = useTranslation();
+  
+  return (
+    <Badge 
+      color={statusColors[status]}
+      placement="top-end"
+      className="font-sans"
+      content={t(`status.${status}`)}
+    >
+      <ProjectIcon />
+    </Badge>
+  );
+}
+
+const statusColors = {
+  active: 'green',
+  pending: 'amber',
+  archived: 'purple'
+};
+```
+
+**Best Practices for Localization:**
+1. **Text Extraction:** Use i18n libraries (react-i18next) with dedicated translation files
+2. **Layout Considerations:** 
+   - Add 25-30% extra width for text expansion
+   - Use Tailwind's RTL support: `direction: 'rtl'` in theme config
+3. **Color Semantics:** Maintain status-color associations across cultures
+4. **Screen Reader Support:** Inject ARIA labels using translation keys
+5. **Dynamic Loading:** Implement code splitting for locale files
+
+---
+
+### Modern Card UI/UX Patterns for Project Data
+
+```jsx
+// Dashboard Card Component
+// Source: Eleken UX Patterns
+// URL: https://www.eleken.co/blog-posts/card-ui-examples
+export function ProjectCard({ project }) {
+  return (
+    <div className="group bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300">
+      <div className="flex justify-between items-start">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {project.name}
+        </h3>
+        <LocalizedBadge status={project.status} />
+      </div>
+      
+      <div className="mt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-500">Budget</span>
+          <div className="flex items-center space-x-2">
+            <CurrencyIcon className="w-4 h-4" />
+            <span className="font-mono">{formatCurrency(project.budget)}</span>
+          </div>
+        </div>
+        
+        <ProgressBar value={project.completion} />
+        
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <SparklineChart data={project.revenue} />
+          <CalendarTimeline dates={project.milestones} />
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**Key UI/UX Enhancements:**
+```markdown
+### Best Practices
+1. **Progressive Disclosure:** 
+   - Primary metrics at top-level
+   - Detailed charts in expandable sections
+2. **Visual Hierarchy:**
+   - 4:1 contrast ratio for critical numbers
+   - Typographic scale using Tailwind's text hierarchy
+3. **Interactive Elements:**
+   - Contextual hover actions (e.g., "Quick Edit" on budget)
+   - Swipe gestures for mobile card stacks
+4. **Data Visualization:**
+   - Tiny charts (Sparklines) for trend visualization
+   - Color-coded date ranges in timeline components
+
+### Modern Patterns
+- **Skeleton Loading:** `animate-pulse` for card states
+- **Contextual Filtering:** Tag-based card filtering
+- **Dynamic Theming:** CSS variables for brand colors
+- **Multi-density Layouts:** Compact vs detailed views
+- **Voice Interaction:** ARIA labels for screen readers
+
+### Performance
+- **Virtualized Lists:** For large card collections
+- **CSS Containment:** `content-visibility: auto`
+- **Image Optimization:** Using Next.js/Image component
+```
+
+**Common Pitfalls to Avoid**
+- Overloading cards with >7 data points
+- Using unclear color associations
+- Ignoring touch target sizes (min 48px)
+- Hardcoding currency/number formats
+- Neglecting dark mode contrast ratios
+
+Combine these patterns with Tailwind's JIT compiler for optimal performance and customization.
+2025-04-06 12:31:24,046 - INFO - Final query sent to Perplexity AI:
+Best practices and libraries for generating downloadable HTML reports client-side in a React/Next.js application? The report needs to combine data fetched from Firestore (projects, invoices, documents, suppliers) and present it in a structured, visually appealing way, potentially using existing CSS (Tailwind). Consider linking related data (e.g., invoices to documents).
+2025-04-06 12:32:00,453 - INFO - Perplexity research result:
+Here's a comprehensive guide to client-side report generation in React/Next.js with Firestore integration:
+
+### Core Libraries & Patterns
+```markdown
+## Recommended Libraries
+| Library           | Purpose                            | Source |
+|--------------------|------------------------------------|--------|
+| react-pdf/renderer | PDF generation from React components | [1][5] |
+| jspdf              | PDF generation with custom layouts | [1][5] |
+| SWR                | Client-side data fetching/caching  | [8]    |
+| Firebase Modular SDK | Modern Firestore interaction     | [6]    |
+| @react-pdf/tailwind| Tailwind CSS in PDFs               | -      |
+
+## Data Fetching Pattern
+```javascript
+// Source: Firebase Documentation
+// URL: https://rnfirebase.io/firestore/usage
+import { getFirestore, collection, getDocs, query } from 'firebase/firestore';
+
+async function fetchReportData() {
+  const db = getFirestore();
+  const [projects, invoices] = await Promise.all([
+    getDocs(collection(db, 'projects')),
+    getDocs(query(collection(db, 'invoices'), where('status', '==', 'paid')))
+  ]);
+  
+  return {
+    projects: projects.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+    invoices: invoices.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  };
+}
+```
+
+### Report Structure Components
+```jsx
+// Source: Ranktracker Blog
+// URL: https://www.ranktracker.com/blog/creating-reports-using-react/
+function ReportSection({ title, data, renderRow }) {
+  return (
+    <div className="mb-8 p-4 bg-white shadow-sm rounded-lg">
+      <h2 className="text-xl font-semibold mb-4 text-gray-700">{title}</h2>
+      <div className="space-y-3">
+        {data.map((item, index) => (
+          <div key={index} className="p-3 border-b border-gray-100">
+            {renderRow(item)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### PDF Generation Workflow
+```javascript
+// Source: Telerik Reporting
+// URL: https://docs.telerik.com/reporting/knowledge-base/how-to-use-html5-viewer-in-react-js
+import { PDFDownloadLink } from '@react-pdf/renderer';
+
+const ReportDownload = () => (
+  <PDFDownloadLink 
+    document={<MyReportDocument />}
+    fileName="report.pdf"
+  >
+    {({ loading }) => (
+      <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        {loading ? 'Generating...' : 'Download PDF'}
+      </button>
+    )}
+  </PDFDownloadLink>
+);
+```
+
+### Best Practices
+**Data Handling**
+- Use Firestore's `array-contains` for document linking
+- Batch related document fetches using `getAll()`
+- Implement SWR fallback data for cached reports [8]
+- Use Firestore security rules for data protection [6]
+
+**Visual Presentation**
+```jsx
+// Source: Tailwind CSS Docs
+// URL: https://tailwindcss.com/docs/styling-with-utility-classes
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 bg-gray-50 rounded-xl">
+  {projects.map(project => (
+    <div key={project.id} className="bg-white p-4 rounded-lg shadow-sm">
+      <h3 className="text-lg font-semibold text-gray-800">{project.name}</h3>
+      <p className="text-sm text-gray-600 mt-2">{project.description}</p>
+    </div>
+  ))}
+</div>
+```
+
+### Common Pitfalls
+1. **Font Issues in PDFs**  
+   - Use web-safe fonts or embed custom fonts in PDF renderer
+2. **Data Freshness**  
+   - Combine SWR revalidation with Firestore snapshots [6][8]
+3. **Large Dataset Handling**  
+   - Implement pagination with Firestore cursor methods [6]
+4. **Style Inconsistencies**  
+   - Use `@react-pdf/tailwind` for consistent PDF styling
+
+### Linked Data Implementation
+```javascript
+// Source: Theseus Firestore Thesis
+// URL: https://www.theseus.fi/bitstream/10024/340142/2/Developing%20a%20mobile%20management%20application_BIT_THESIS.pdf
+async function fetchDocumentChain(invoiceId) {
+  const db = getFirestore();
+  const invoiceRef = doc(db, 'invoices', invoiceId);
+  const invoiceSnap = await getDoc(invoiceRef);
+  
+  const [project, supplier] = await Promise.all([
+    getDoc(invoiceSnap.data().projectRef),
+    getDoc(invoiceSnap.data().supplierRef)
+  ]);
+
+  return {
+    invoice: invoiceSnap.data(),
+    project: project.data(),
+    supplier: supplier.data()
+  };
+}
+```
+
+### Performance Optimization
+- Preload common assets using Next.js static generation
+- Implement virtualized lists for large datasets
+- Use Firestore's `select()` to limit retrieved fields [6]
+- Cache report templates using React.memo
+
+### Error Handling
+```javascript
+// Source: Loggly Best Practices
+// URL: https://www.loggly.com/blog/best-practices-for-client-side-logging-and-error-handling-in-react/
+const logger = {
+  error: (message, context) => {
+    console.error(`[Report Error] ${new Date().toISOString()}: ${message}`, context);
+    // Integrate with error tracking service
+  }
+};
+
+// Usage in component
+try {
+  await generatePDF();
+} catch (error) {
+  logger.error('PDF generation failed', { error, userId });
+}
+```

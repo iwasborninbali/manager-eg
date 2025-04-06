@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/Button'; // Import Button
 import { ChartBarIcon } from '@heroicons/react/24/outline'; // Import icon for financials button
 import { DocumentDuplicateIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button
 import { cn } from '@/lib/utils';
+import { translateProjectStatus } from '@/lib/translations'; // Import the translation function
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
 import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
+import { CalendarDaysIcon, BanknotesIcon, ArrowTrendingUpIcon, TagIcon } from '@heroicons/react/24/outline'; // Add icons for card details
 
 // Define the structure of a Project document
 interface Project {
@@ -42,7 +44,7 @@ const formatDate = (timestamp: Timestamp | undefined): string => {
 
 // Function to format currency (optional)
 const formatCurrency = (amount: number | undefined): string => {
-  if (amount === undefined) return 'N/A';
+  if (amount === undefined || amount === null) return 'Н/Д'; // Changed N/A to Н/Д
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount); // Adjust locale/currency
 };
 
@@ -201,8 +203,25 @@ const ProjectList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="text-center py-10">
-        <p className="text-neutral-500 dark:text-neutral-400">Загрузка проектов...</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Skeleton Loader */} 
+          {[...Array(6)].map((_, index) => (
+            <Card key={index} className="h-full animate-pulse">
+              <CardHeader>
+                <div className="h-6 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2"></div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full"></div>
+              </CardContent>
+              <CardFooter className="pt-4 border-t border-neutral-100 dark:border-neutral-700">
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/3"></div>
+              </CardFooter>
+            </Card>
+          ))}
       </div>
     );
   }
@@ -227,57 +246,76 @@ const ProjectList: React.FC = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {projects.map((project) => (
-          <div 
-            key={project.id} 
-            className="relative group" 
+          <div
+            key={project.id}
+            className="relative group"
           >
-            <Card 
-              variant="outline" 
-              className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300 cursor-pointer" 
+            {/* Use Card component from Shadcn UI */}
+            <Card
+              // Removed variant="outline"
+              className="h-full flex flex-col bg-white dark:bg-neutral-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer overflow-hidden"
               onClick={() => handleProjectClick(project)}
             >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="mb-1">{project.name || 'Безымянный проект'}</CardTitle>
-                    <CardDescription>#{project.number || 'N/A'} - {project.customer || 'Нет заказчика'}</CardDescription>
+              <CardHeader className="p-4 pb-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base font-semibold text-neutral-900 dark:text-neutral-100 truncate" title={project.name || 'Безымянный проект'}>
+                        {project.name || 'Безымянный проект'}
+                    </CardTitle>
+                    <CardDescription className="text-sm text-neutral-500 dark:text-neutral-400 truncate" title={`#${project.number || 'N/A'} - ${project.customer || 'Нет заказчика'}`}>
+                        #{project.number || 'N/A'} - {project.customer || 'Нет заказчика'}
+                    </CardDescription>
                   </div>
+                  {/* Status Badge using translation and color map */} 
                   {project.status && (
-                    <Badge 
+                    <Badge
+                      variant="secondary" // Use secondary variant for a softer look
                       className={cn(
-                        "text-xs px-2 py-1 rounded-full flex-shrink-0 ml-2", // Added margin and shrink
-                        statusColors[project.status] || 'bg-neutral-100 text-neutral-700'
+                        "text-xs px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap", // Adjusted padding and added whitespace-nowrap
+                        statusColors[project.status] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'
                       )}
+                      title={`Статус: ${translateProjectStatus(project.status)}`} // Add title for full text on hover
                     >
-                      {project.status}
+                      {translateProjectStatus(project.status)} {/* Use translated status */}
                     </Badge>
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3 flex-grow">
-                <div className="text-sm text-neutral-600 dark:text-neutral-400 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Бюджет (План):</span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Бюджет (Факт):</span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
-                  </div>
-                   <div className="flex justify-between">
-                    <span>Выручка (План):</span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Выручка (Факт):</span>
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue)}</span>
-                  </div>
-                </div>
+              <CardContent className="p-4 pt-2 space-y-2.5 flex-grow">
+                 {/* Use DetailItem-like structure with icons */}
+                 <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Бюджет (План):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> {/* Added color */} Бюджет (Факт):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                            <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Выручка (План):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                            <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> {/* Added color */} Выручка (Факт):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue)}</span>
+                    </div>
+                 </div>
               </CardContent>
-              <CardFooter className="text-xs text-neutral-500 dark:text-neutral-400 flex justify-between items-center pt-4 border-t border-neutral-100 dark:border-neutral-700">
-                <div className="flex flex-col">
+              <CardFooter className="p-4 pt-3 text-xs text-neutral-500 dark:text-neutral-400 flex justify-between items-center border-t border-neutral-100 dark:border-neutral-700 mt-auto">
+                <div className="flex items-center">
+                  <CalendarDaysIcon className="h-3.5 w-3.5 mr-1 opacity-70" />
                   <span>Срок: {formatDate(project.duedate)}</span>
                 </div>
+                {/* Keep existing action buttons */}
                 <div className="flex items-center space-x-0.5"> {/* Adjusted spacing */}
                     {/* Closing Docs Button */}
                     <Button 

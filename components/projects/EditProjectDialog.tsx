@@ -2,11 +2,18 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, UserCircleIcon } from '@heroicons/react/24/solid';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Timestamp, doc, updateDoc } from 'firebase/firestore'; // Import Timestamp, doc, updateDoc
-import { db } from '@/firebase/config'; // Import db
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { Timestamp, doc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/firebase/config';
+
+// Define User interface for managers list
+interface ManagerUser {
+    uid: string;
+    name: string; // Combine first/last or use displayName
+}
 
 // Define Project interface (or import)
 interface Project {
@@ -17,7 +24,7 @@ interface Project {
     customer?: string;
     duedate?: Timestamp;
     estimatecostlink?: string;
-    managerid?: string;
+    managerid?: string; // Keep managerid
     name?: string;
     number?: string;
     planned_revenue?: number; // Выручка - план
@@ -36,11 +43,11 @@ interface EditProjectFormData {
     number?: string;
     customer?: string;
     duedate?: string; // Store date as YYYY-MM-DD string
-    budget?: number;
-    planned_revenue?: number;
+    budget?: number; // Represents actual_budget in form
+    planned_revenue?: number; // Represents actual_revenue in form
     estimatecostlink?: string;
     presentationlink?: string;
-    // managerid?: string; // Handle separately
+    managerid?: string; // Add managerid to form data
     status?: string;
     description?: string;
     usn_tax?: number;
@@ -59,19 +66,52 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
   const [formData, setFormData] = useState<EditProjectFormData>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [managers, setManagers] = useState<ManagerUser[]>([]);
+  const [loadingManagers, setLoadingManagers] = useState(false);
 
+  // Fetch managers
+  useEffect(() => {
+    const fetchManagers = async () => {
+      if (!isOpen) return;
+      setLoadingManagers(true);
+      setManagers([]); // Clear previous managers
+      setError(null); // Clear previous errors
+      try {
+        const usersRef = collection(db, 'users');
+        // Add the query to filter by role 'Manager'
+        const q = query(usersRef, where('role', 'array-contains', 'Manager'));
+        const querySnapshot = await getDocs(q);
+        const managerList: ManagerUser[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          // Construct name (adjust based on your user data structure)
+          const name = data.displayName || `${data.first_name || ''} ${data.last_name || ''}`.trim() || doc.id;
+          managerList.push({ uid: doc.id, name: name });
+        });
+        setManagers(managerList);
+      } catch (err) {
+        console.error("Error fetching managers:", err);
+        setError("Не удалось загрузить список менеджеров."); // Add specific error
+      } finally {
+        setLoadingManagers(false);
+      }
+    };
+    fetchManagers();
+  }, [isOpen]);
+
+  // Initialize form data correctly, converting Timestamp to string
   useEffect(() => {
     if (project && isOpen) {
-      // Initialize form data correctly, converting Timestamp to string
       setFormData({
         name: project.name ?? '',
         number: project.number ?? '',
         customer: project.customer ?? '',
         duedate: project.duedate ? project.duedate.toDate().toISOString().split('T')[0] : '',
-        budget: project.actual_budget ?? undefined,
-        planned_revenue: project.actual_revenue ?? undefined,
+        budget: project.actual_budget ?? undefined, // Use actual_budget
+        planned_revenue: project.actual_revenue ?? undefined, // Use actual_revenue
         estimatecostlink: project.estimatecostlink ?? '',
         presentationlink: project.presentationlink ?? '',
+        managerid: project.managerid ?? '', // Initialize managerid
         status: project.status ?? 'planning',
         description: project.description ?? '',
         usn_tax: project.usn_tax ?? undefined,
@@ -80,9 +120,10 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
       setError(null);
     } else if (!isOpen) {
         // Clear form when closed
-         setFormData({}); 
+         setFormData({});
          setError(null);
          setLoading(false);
+         setManagers([]); // Clear managers on close
     }
   }, [project, isOpen]);
 
@@ -93,12 +134,17 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
     setFormData(prev => ({ ...prev, [name]: val }));
   };
 
+  // Handler specifically for Select component (shadcn UI)
+  const handleManagerChange = (value: string) => {
+    setFormData(prev => ({ ...prev, managerid: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // Keep the null check for project
-    if (!project) { 
+    if (!project) {
         setError("Ошибка: Данные проекта отсутствуют.");
-        return; 
+        return;
     }
     if (loading) return;
     setLoading(true);
@@ -115,33 +161,35 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
          // Map form fields to the correct Project interface fields for Firestore update
          actual_budget: formData.budget ? parseFloat(String(formData.budget)) : undefined,
          actual_revenue: formData.planned_revenue ? parseFloat(String(formData.planned_revenue)) : undefined,
-         // NOTE: planned_budget and planned_revenue are NOT updated here, only actuals.
+         managerid: formData.managerid, // Include managerid
          estimatecostlink: formData.estimatecostlink,
          presentationlink: formData.presentationlink,
          status: formData.status,
-         description: formData.description, 
+         description: formData.description,
+         usn_tax: formData.usn_tax ? parseFloat(String(formData.usn_tax)) : undefined,
+         nds_tax: formData.nds_tax ? parseFloat(String(formData.nds_tax)) : undefined,
          updatedAt: Timestamp.now(),
        };
 
-       // Remove undefined or empty string fields
+       // Remove undefined, null, or empty string fields before updating
        Object.keys(updateData).forEach(keyStr => {
          const key = keyStr as keyof Partial<Project>;
-         if (updateData[key] === undefined || updateData[key] === '') { 
+         if (updateData[key] === undefined || updateData[key] === null || updateData[key] === '') {
              delete updateData[key];
          }
        });
-       
+
        if (!updateData.name) {
            throw new Error("Название проекта обязательно.");
        }
- 
+
        const projectRef = doc(db, 'projects', project.id);
        await updateDoc(projectRef, updateData);
-       
-       console.log("Project updated successfully.");
+
+       console.log("Project updated successfully with data:", updateData);
        onSuccess?.(updateData);
        onClose();
- 
+
      } catch (err: unknown) { // Specify type as unknown
        console.error("Error updating project:", err);
        // Type guard for error message
@@ -196,7 +244,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                   </button>
                 </Dialog.Title>
 
-                <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                <form onSubmit={handleSubmit} className="mt-4 space-y-4 max-h-[75vh] overflow-y-auto pr-2 custom-scrollbar">
                   {/* --- Form Fields (similar structure as before) --- */}
                   {/* Row 1: Name & Number */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -272,7 +320,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                     </div>
                   </div>
                   
-                   {/* Row 7: Status & Manager (Manager later) */}
+                   {/* Row 7: Status & Manager */}
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div>
                        <label htmlFor="status" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Статус</label>
@@ -292,10 +340,36 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                          {/* Add other statuses? */}
                        </select>
                      </div>
-                     {/* TODO: Add Manager Selection dropdown */}
+                     {/* Manager Selection Dropdown */}
                      <div>
-                       <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Менеджер</label>
-                       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">(Выбор менеджера будет добавлен позже)</p>
+                       <label htmlFor="managerid" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Менеджер</label>
+                       <Select
+                         value={formData.managerid || ''}
+                         onValueChange={handleManagerChange}
+                         disabled={loading || loadingManagers}
+                       >
+                         <SelectTrigger className="w-full mt-1">
+                           <div className="flex items-center">
+                                <UserCircleIcon className="h-4 w-4 mr-2 opacity-50"/>
+                                <SelectValue placeholder={loadingManagers ? "Загрузка..." : "Выберите менеджера"}>
+                                    {formData.managerid
+                                        ? managers.find(m => m.uid === formData.managerid)?.name ?? formData.managerid
+                                        : (loadingManagers ? "Загрузка..." : "Выберите менеджера")
+                                    }
+                                </SelectValue>
+                            </div>
+                         </SelectTrigger>
+                         <SelectContent>
+                            {managers.map((manager) => (
+                             <SelectItem key={manager.uid} value={manager.uid}>
+                               {manager.name}
+                             </SelectItem>
+                           ))}
+                           {managers.length === 0 && !loadingManagers && (
+                               <div className="px-2 py-1.5 text-sm text-neutral-500">Менеджеры не найдены</div>
+                           )}
+                         </SelectContent>
+                       </Select>
                      </div>
                    </div>
 
@@ -303,11 +377,11 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                   {error && <p className="mt-2 text-sm text-error-600 dark:text-error-400">{error}</p>}
 
                   {/* Buttons */}
-                  <div className="mt-6 flex justify-end space-x-3 border-t border-neutral-200 dark:border-neutral-700 pt-4">
+                  <div className="mt-6 flex justify-end space-x-3 border-t border-neutral-200 dark:border-neutral-700 pt-4 sticky bottom-0 bg-white dark:bg-neutral-800 py-3">
                     <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
                       Отмена
                     </Button>
-                    <Button type="submit" variant="default" isLoading={loading} disabled={loading}> {/* Changed variant to default */} 
+                    <Button type="submit" variant="default" isLoading={loading} disabled={loading}> {/* Changed variant to default */}
                       Сохранить изменения
                     </Button>
                   </div>

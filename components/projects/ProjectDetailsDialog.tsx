@@ -2,33 +2,67 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { LinkIcon, CalendarDaysIcon, UserCircleIcon, CurrencyDollarIcon, DocumentTextIcon, PresentationChartLineIcon, UserIcon as SolidUserIcon, PencilSquareIcon, ChartBarIcon, DocumentDuplicateIcon } from '@heroicons/react/24/solid';
-import { doc, getDoc } from 'firebase/firestore';
+import { LinkIcon, CalendarDaysIcon, UserCircleIcon, CurrencyDollarIcon, DocumentTextIcon, PresentationChartLineIcon, UserIcon as SolidUserIcon, PencilSquareIcon, ChartBarIcon, DocumentDuplicateIcon, TagIcon, ArrowDownTrayIcon, XMarkIcon as OutlineXMarkIcon } from '@heroicons/react/24/solid';
+import { doc, getDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { translateProjectStatus } from '@/lib/translations';
 import EditProjectDialog from './EditProjectDialog';
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectInvoicesDialog from './ProjectInvoicesDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
-import { Timestamp } from 'firebase/firestore';
-import { XMarkIcon as OutlineXMarkIcon } from '@heroicons/react/24/outline';
+import { generateAndDownloadHtmlReport } from '@/lib/reportUtils';
+import { ProjectReportData, FinancialSummaryData } from '@/components/projects/ProjectFinancialReport';
 
 // Re-define Project interface (or import from a shared types file if you have one)
 interface Project {
   id: string;
   budget?: number;
+  planned_budget?: number;
+  actual_budget?: number;
+  planned_revenue?: number;
+  actual_revenue?: number;
+  usn_tax?: number;
+  nds_tax?: number;
+  status?: string;
+  duedate?: Timestamp;
   createdAt?: Timestamp;
   customer?: string;
-  duedate?: Timestamp;
   estimatecostlink?: string;
   managerid?: string;
   name?: string;
   number?: string;
-  planned_revenue?: number;
   presentationlink?: string;
-  status?: string;
   updatedAt?: Timestamp;
+}
+
+// Define necessary interfaces for fetching report data
+interface Invoice {
+  id: string;
+  projectId?: string;
+  supplierId?: string;
+  amount?: number;
+  status?: string;
+  dueDate?: Timestamp;
+  paidAt?: Timestamp;
+  fileURL?: string;
+}
+
+interface ClosingDocument {
+  id: string;
+  projectId?: string;
+  invoiceId?: string;
+  fileName?: string;
+  uploadedAt?: Timestamp;
+  date?: Timestamp | null;
+  fileURL?: string;
+}
+
+interface Supplier {
+  id: string;
+  name?: string;
 }
 
 interface ProjectDetailsDialogProps {
@@ -44,7 +78,7 @@ const formatDate = (timestamp: Timestamp | undefined): string => {
 };
 
 const formatCurrency = (amount: number | undefined): string => {
-  if (amount === undefined || amount === null) return 'N/A';
+  if (amount === undefined || amount === null) return 'Н/Д';
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount);
 };
 
@@ -75,9 +109,8 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isFinancialsOpen, setIsFinancialsOpen] = useState(false);
   const [isInvoicesOpen, setIsInvoicesOpen] = useState(false);
-
-  // State for Closing Docs Dialog (managed locally)
   const [isClosingDocsOpen, setIsClosingDocsOpen] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
 
   useEffect(() => {
     const fetchManagerName = async () => {
@@ -150,6 +183,221 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
     setIsClosingDocsOpen(false);
   };
 
+  // --- Data Fetching for Report ---
+  const fetchReportData = async (projectId: string): Promise<ProjectReportData | null> => {
+    if (!projectId) return null;
+    console.log(`Fetching report data for project: ${projectId}`);
+    try {
+      // 1. Fetch Project (ensure we have the latest/required fields)
+      const projectRef = doc(db, 'projects', projectId);
+      const projectSnap = await getDoc(projectRef);
+      if (!projectSnap.exists()) {
+        console.error("Project not found for report:", projectId);
+        // TODO: Show user feedback (e.g., toast notification)
+        return null;
+      }
+      // Explicitly cast to Project, assuming Firestore structure matches
+      const projectData = { id: projectSnap.id, ...projectSnap.data() } as Project;
+      console.log("Fetched project data:", projectData);
+
+      // 2. Fetch Invoices for this project
+      const invoicesQuery = query(collection(db, 'invoices'), where('projectId', '==', projectId));
+      const invoicesSnap = await getDocs(invoicesQuery);
+      const invoices = invoicesSnap.docs.map(doc => {
+        const data = doc.data();
+        // Log uses correct field name from data
+        console.log(`Fetched Invoice URL for ${doc.id}:`, data.fileURL);
+        return { id: doc.id, ...data } as Invoice;
+      });
+      console.log(`Fetched ${invoices.length} invoices.`);
+
+      // 3. Fetch Closing Documents for this project
+      const docsQuery = query(collection(db, 'closingDocuments'), where('projectId', '==', projectId));
+      const docsSnap = await getDocs(docsQuery);
+      const closingDocuments = docsSnap.docs.map(doc => {
+        const data = doc.data();
+        // Log uses correct field name from data
+        console.log(`Fetched Doc URL for ${doc.id} (fileName: ${data.fileName}):`, data.fileURL);
+        return { id: doc.id, ...data } as ClosingDocument;
+      });
+      console.log(`Fetched ${closingDocuments.length} closing documents.`);
+
+      // 4. Fetch Suppliers (unique IDs from invoices)
+      const supplierIds = [...new Set(invoices.map(inv => inv.supplierId).filter((id): id is string => !!id))]; // Filter out undefined/null and type guard
+      const suppliersMap = new Map<string, string>();
+      if (supplierIds.length > 0) {
+          console.log(`Fetching names for ${supplierIds.length} unique suppliers...`);
+          // Consider batching reads if many suppliers (Firestore v9 'in' query or Promise.all)
+          const supplierPromises = supplierIds.map(id => getDoc(doc(db, 'suppliers', id)));
+          const supplierSnaps = await Promise.all(supplierPromises);
+
+          supplierSnaps.forEach((snap, index) => {
+            if (snap.exists()) {
+              // Explicitly cast, assuming structure matches
+              const data = snap.data() as Supplier;
+              suppliersMap.set(snap.id, data.name || 'Имя не указано');
+            } else {
+               console.warn(`Supplier document not found for ID: ${supplierIds[index]}`);
+               suppliersMap.set(supplierIds[index], 'Поставщик не найден');
+            }
+          });
+          console.log("Fetched supplier names:", suppliersMap);
+      }
+
+      // --- Calculate Invoice Summary --- 
+      const invoiceSummary = invoices.reduce((summary, inv) => {
+        const status = inv.status || 'unknown';
+        summary.countByStatus[status] = (summary.countByStatus[status] || 0) + 1;
+        if (status === 'overdue') {
+          summary.overdueCount += 1;
+        }
+        // Could add more logic here, e.g., check if dueDate is past and status isn't paid/cancelled
+        const now = new Date();
+        const dueDate = inv.dueDate?.toDate();
+        if (dueDate && dueDate < now && status !== 'paid' && status !== 'cancelled'){
+          // Potentially mark as overdue even if status field isn't set yet
+          if (status !== 'overdue') summary.overdueCount += 1; 
+        }
+
+        return summary;
+      }, { countByStatus: {} as { [status: string]: number }, overdueCount: 0 });
+      console.log("Calculated invoice summary:", invoiceSummary);
+
+      // --- Calculate Financial Summary (with Variances & Net Profit) --- 
+      const spent = invoices
+          .filter(inv => inv.status !== 'cancelled' && typeof inv.amount === 'number')
+          .reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
+
+      const actualBudget = projectData.actual_budget ?? 0;
+      const plannedBudget = projectData.planned_budget ?? 0;
+      const actualRevenue = projectData.actual_revenue ?? 0;
+      const plannedRevenue = projectData.planned_revenue ?? 0;
+
+      const remainingBudget = actualBudget - spent;
+      const budgetVariance = actualBudget - plannedBudget; // Fact - Plan
+      const revenueVariance = actualRevenue - plannedRevenue; // Fact - Plan
+
+      const budgetVariancePercent = plannedBudget !== 0 ? (budgetVariance / plannedBudget) * 100 : undefined;
+      const revenueVariancePercent = plannedRevenue !== 0 ? (revenueVariance / plannedRevenue) * 100 : undefined;
+
+      let plannedMargin: number | undefined = undefined;
+      if (plannedRevenue !== 0) {
+          plannedMargin = ((plannedRevenue - plannedBudget) / plannedRevenue) * 100;
+      }
+
+      let actualMargin: number | undefined = undefined;
+      if (actualRevenue !== 0) {
+          actualMargin = ((actualRevenue - actualBudget) / actualRevenue) * 100;
+      }
+
+      let marginVariancePercent: number | undefined = undefined;
+      if (plannedMargin !== undefined && actualMargin !== undefined) {
+           marginVariancePercent = actualMargin - plannedMargin; // Difference in percentage points
+      }
+
+      // Calculate estimated taxes and net profit
+      const usnTaxAmount = projectData.usn_tax ?? 0;
+      const ndsTaxAmount = projectData.nds_tax ?? 0;
+      const totalEstimatedTaxes = usnTaxAmount + ndsTaxAmount;
+      const estimatedNetProfit = actualRevenue - actualBudget - totalEstimatedTaxes;
+
+      const financialSummary: FinancialSummaryData = {
+          totalSpent: spent,
+          remainingBudget: remainingBudget,
+          plannedMargin: plannedMargin,
+          actualMargin: actualMargin,
+          budgetVariance: budgetVariance,
+          budgetVariancePercent: budgetVariancePercent,
+          revenueVariance: revenueVariance,
+          revenueVariancePercent: revenueVariancePercent,
+          marginVariancePercent: marginVariancePercent,
+          estimatedNetProfit: estimatedNetProfit
+      };
+      console.log("Calculated financial summary (enhanced):", financialSummary);
+      // --- End Financial Summary Calculation ---
+
+      // 5. Structure the data
+      const docsByInvoiceId = closingDocuments.reduce((acc, doc) => {
+        const invoiceId = doc.invoiceId;
+        if (invoiceId) {
+          if (!acc[invoiceId]) acc[invoiceId] = [];
+          acc[invoiceId].push({
+            id: doc.id,
+            fileName: doc.fileName || 'Без имени',
+            uploadedAt: doc.uploadedAt || Timestamp.now(),
+            date: doc.date || null,
+            fileURL: doc.fileURL,
+          });
+        }
+        return acc;
+      }, {} as { [invoiceId: string]: Required<ProjectReportData['invoices'][0]['closingDocuments'][0]>[] });
+
+      const structuredInvoices: ProjectReportData['invoices'] = invoices.map(inv => ({
+        id: inv.id,
+        supplierName: suppliersMap.get(inv.supplierId!) || 'Поставщик не указан',
+        amount: inv.amount,
+        status: inv.status,
+        dueDate: inv.dueDate,
+        paidAt: inv.paidAt,
+        fileURL: inv.fileURL,
+        closingDocuments: docsByInvoiceId[inv.id] || [],
+      }));
+
+      const reportData: ProjectReportData = {
+        project: {
+          id: projectData.id,
+          name: projectData.name,
+          number: projectData.number,
+          customer: projectData.customer,
+          planned_budget: projectData.planned_budget,
+          actual_budget: projectData.actual_budget,
+          planned_revenue: projectData.planned_revenue,
+          actual_revenue: projectData.actual_revenue,
+          status: projectData.status,
+          duedate: projectData.duedate,
+          usn_tax: projectData.usn_tax,
+          nds_tax: projectData.nds_tax
+        },
+        invoices: structuredInvoices,
+        financialSummary: financialSummary,
+        invoiceSummary: invoiceSummary
+      };
+
+      console.log("Successfully structured enhanced report data:", reportData);
+      return reportData;
+
+    } catch (error) {
+      console.error("Error fetching report data:", error);
+      // TODO: Show user feedback (e.g., toast notification)
+      return null;
+    }
+  };
+
+  // --- Download Handler ---
+  const handleDownloadReport = async () => {
+    if (!project || isDownloadingReport) return;
+
+    setIsDownloadingReport(true);
+    console.log("Attempting to download report...");
+    try {
+      const reportData = await fetchReportData(project.id);
+      if (reportData) {
+        generateAndDownloadHtmlReport(reportData, project.id);
+        console.log("Report download initiated.");
+        // TODO: Show success toast
+      } else {
+         console.error("Failed to generate report data. Download cancelled.");
+         // TODO: Show error toast
+      }
+    } catch (error) {
+      console.error("Error generating or downloading report:", error);
+       // TODO: Show error toast
+    } finally {
+      setIsDownloadingReport(false);
+      console.log("Download process finished (or failed).");
+    }
+  };
+
   if (!project) return null;
 
   return (
@@ -181,8 +429,8 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 p-6 text-left align-middle shadow-xl transition-all">
-                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center mb-4">
+                <Dialog.Panel className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 p-6 text-left align-middle shadow-xl transition-all flex flex-col">
+                  <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center mb-4 flex-shrink-0">
                     <span className="truncate mr-4">Детали проекта: {project.name || 'Без имени'} (#{project.number || 'N/A'})</span>
                     <div className="flex items-center space-x-1 flex-shrink-0">
                         {/* Closing Docs Button */}
@@ -238,21 +486,26 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
                   </Dialog.Title>
                   
                   {/* Main Content Area - Simplified */}
-                  <div className="space-y-6"> 
+                  <div className="space-y-6 flex-grow overflow-y-auto pr-2">
                       {/* Project Details Section */}
                       <div className="pt-4">
-                        {/* Removed border-t */} 
                         <h4 className="text-md font-medium text-neutral-900 dark:text-neutral-100 mb-3">Детали проекта</h4>
                         <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
                           <DetailItem label="Заказчик" value={project.customer} icon={<UserCircleIcon />} />
                           <DetailItem 
                             label="Статус" 
-                            icon={<Badge className="h-4 w-4 p-0 border-none bg-transparent" />}
+                            icon={<TagIcon className="h-4 w-4 flex-shrink-0 text-neutral-400 dark:text-neutral-500" />}
                             value={project.status ? 
-                              <Badge className={cn("text-xs px-2 py-1 rounded-full", projectStatusColors[project.status] || 'bg-neutral-100 text-neutral-700')}>
-                                {project.status}
+                              <Badge 
+                                variant="secondary"
+                                className={cn(
+                                  "text-xs px-2.5 py-1 rounded-full whitespace-nowrap",
+                                  projectStatusColors[project.status] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'
+                                )}
+                              >
+                                {translateProjectStatus(project.status)}
                               </Badge> 
-                              : 'N/A'} 
+                              : 'Н/Д'} 
                           />
                           <DetailItem label="Выручка (план)" value={formatCurrency(project.planned_revenue)} icon={<CurrencyDollarIcon />} />
                           <DetailItem label="Срок сдачи" value={formatDate(project.duedate)} icon={<CalendarDaysIcon />} />
@@ -291,13 +544,38 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
                           {/* <DetailItem label="Последнее обновление" value={formatDate(project.updatedAt)} icon={<CalendarDaysIcon />} /> */} 
                         </dl>
                       </div>
-
-                      {/* REMOVED Invoices Section */} 
-                      {/* <div className="border-t border-neutral-200 dark:border-neutral-700 pt-4"> ... </div> */}
-                      
                   </div>
-                  {/* REMOVED Dialog Actions (Upload buttons) */}
-                  {/* <div className="mt-6 pt-4 border-t ... "> ... </div> */}
+
+                  {/* --- Dialog Footer --- */}
+                  <div className="mt-6 pt-4 border-t border-neutral-200 dark:border-neutral-700 flex justify-end space-x-3 flex-shrink-0">
+                      <Button
+                          variant="outline"
+                          onClick={onClose}
+                          disabled={isDownloadingReport}
+                      >
+                          Закрыть
+                      </Button>
+                      <Button
+                          onClick={handleDownloadReport}
+                          disabled={isDownloadingReport}
+                          variant="secondary"
+                      >
+                          {isDownloadingReport ? (
+                              <>
+                                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                   </svg>
+                                  Генерация...
+                              </>
+                          ) : (
+                              <>
+                                  <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+                                  Скачать отчет
+                              </>
+                          )}
+                      </Button>
+                  </div>
 
                 </Dialog.Panel>
               </Transition.Child>
@@ -307,7 +585,6 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
       </Transition>
 
       {/* --- Render Dependent Dialogs --- */}
-      {/* Edit Dialog */} 
       {project && (
          <EditProjectDialog
             isOpen={isEditDialogOpen}
@@ -317,8 +594,7 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
          />
       )}
       
-      {/* Financials Dialog */} 
-       {project && (
+      {project && (
            <ProjectFinancialsDialog
                isOpen={isFinancialsOpen}
                onClose={handleCloseFinancialsDialog}
@@ -326,23 +602,21 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
            />
        )}
        
-      {/* Invoices Dialog */} 
-       {project && (
+      {project && (
            <ProjectInvoicesDialog
                isOpen={isInvoicesOpen}
                onClose={handleCloseInvoicesDialog}
                projectId={project.id}
-               projectName={project.name ?? 'Без имени'}
+               projectName={project.name || 'Unknown Project'}
            />
        )}
        
-      {/* Closing Docs Dialog */} 
-       {project && (
+      {project && (
            <ProjectClosingDocsDialog
                isOpen={isClosingDocsOpen}
                onClose={handleCloseClosingDocsDialog}
                projectId={project.id}
-               projectName={project.name}
+               projectName={project.name || 'Unknown Project'}
            />
        )}
        

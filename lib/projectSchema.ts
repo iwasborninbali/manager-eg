@@ -1,5 +1,8 @@
 import { Timestamp } from 'firebase/firestore';
 
+// Define the possible project statuses
+export type ProjectStatus = 'planning' | 'active' | 'completed' | 'on_hold' | 'cancelled' | 'in-progress'; // Added 'in-progress' based on translation file
+
 // Defines the structure of a project document in Firestore
 export interface ProjectData {
   number?: string; // Optional, might be assigned later or not used
@@ -11,7 +14,7 @@ export interface ProjectData {
   estimatecostlink?: string; // Optional URL
   presentationlink?: string; // Optional URL
   planned_revenue?: number; // Stored as number
-  status: 'planning' | 'in-progress' | 'completed' | 'on-hold' | 'cancelled'; // Example statuses
+  status: ProjectStatus; // Use the exported type
   createdAt: Timestamp;
   updatedAt: Timestamp;
   // Add any other fields relevant to your project structure

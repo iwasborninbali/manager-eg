@@ -6,6 +6,7 @@ import { XMarkIcon, DocumentArrowDownIcon, DocumentArrowUpIcon, InboxIcon } from
 import { Timestamp, collection, query, where, onSnapshot, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import UploadClosingDocumentDialog from '../documents/UploadClosingDocumentDialog';
 
 // --- Interfaces (Copied/Adapted) ---
@@ -234,12 +235,22 @@ const ProjectClosingDocsDialog: React.FC<ProjectClosingDocsDialogProps> = ({
                                     <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center">
                                         <span>Закр. документы: {projectName || projectId || '...'}</span>
                                         <div className="flex items-center space-x-1">
-                                            <Button variant="outline" size="sm" onClick={handleOpenUploadClosingDoc} disabled={isLoading} title="Загрузить документ">
-                                                <DocumentArrowUpIcon className="h-5 w-5 mr-1"/> Загрузить
+                                            {/* Icon-only Upload Button */}
+                                            <Button variant="secondary" size="icon" onClick={handleOpenUploadClosingDoc} disabled={isLoading} title="Загрузить документ">
+                                                <span className="sr-only">Загрузить документ</span>
+                                                <DocumentArrowUpIcon className="h-5 w-5"/>
                                             </Button>
-                                            <button type="button" className="p-1 rounded-md text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none" onClick={handleClose} disabled={isLoading}>
+                                            <Button
+                                                type="button"
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="text-neutral-500 dark:text-neutral-400"
+                                                onClick={handleClose}
+                                                disabled={isLoading}
+                                                aria-label="Закрыть"
+                                            >
                                                 <XMarkIcon className="h-5 w-5" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     </Dialog.Title>
 
@@ -253,51 +264,59 @@ const ProjectClosingDocsDialog: React.FC<ProjectClosingDocsDialogProps> = ({
                                         )}
 
                                         {!isLoading && !errorDocs && Object.keys(groupedDocuments).length > 0 && (
-                                            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                                                {/* Display general documents first if they exist */}
+                                            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                                {/* General Documents Card */} 
                                                 {groupedDocuments['__general__']?.length > 0 && (
-                                                    <div className="mb-4 p-3 bg-neutral-100 dark:bg-neutral-700/50 rounded-md">
-                                                        <h5 className="text-sm font-semibold mb-2 text-neutral-800 dark:text-neutral-200">Общие документы проекта</h5>
-                                                        <ul className="space-y-1">
-                                                            {groupedDocuments['__general__'].map(doc => (
-                                                                <li key={doc.id} className="flex items-center justify-between text-xs">
-                                                                    {/* Document Details */}
-                                                                    <span className="flex-1 min-w-0 truncate" title={doc.fileName}>{doc.fileName} ({formatDate(doc.uploadedAt)})</span>
-                                                                    {/* Download Link */}
-                                                                    <a href={doc.fileURL} target="_blank" rel="noopener noreferrer" className="ml-2 p-1 text-primary-600 hover:text-primary-800">
-                                                                        <DocumentArrowDownIcon className="h-4 w-4" />
-                                                                    </a>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
+                                                    <Card className="mb-4 bg-neutral-50 dark:bg-neutral-900/50 shadow-sm">
+                                                        <CardHeader className="p-3 pb-2 border-b dark:border-neutral-700">
+                                                            <CardTitle className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Общие документы проекта</CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent className="p-3">
+                                                            <ul className="space-y-1.5 text-xs">
+                                                                {groupedDocuments['__general__'].map(doc => (
+                                                                    <li key={doc.id} className="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/40 p-1 rounded">
+                                                                        <span className="flex-1 min-w-0 truncate mr-2" title={`${doc.fileName} (Загружен: ${formatDate(doc.uploadedAt)})`}>
+                                                                            {doc.fileName} <span className="text-neutral-500 text-[11px]">({formatDate(doc.uploadedAt)})</span>
+                                                                        </span>
+                                                                        <a href={doc.fileURL} target="_blank" rel="noopener noreferrer" className="ml-2 p-1 rounded-full text-primary-600 hover:bg-primary-100 dark:hover:bg-primary-900/50" title="Скачать">
+                                                                            <DocumentArrowDownIcon className="h-4 w-4" />
+                                                                        </a>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </CardContent>
+                                                    </Card>
                                                 )}
                                                 
-                                                {/* Display documents grouped by invoice */}
+                                                {/* Invoice-Specific Documents Cards */} 
                                                 {Object.entries(groupedDocuments).filter(([key]) => key !== '__general__').map(([invoiceId, docs]) => {
                                                     const { invoiceIdentifier } = getInvoiceContext(invoiceId);
                                                     return (
-                                                        <div key={invoiceId} className="p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-md">
-                                                            <h5 className="text-sm font-semibold mb-2 text-neutral-800 dark:text-neutral-200">
-                                                                <InboxIcon className="h-4 w-4 inline mr-1 opacity-70"/> Счет: {invoiceIdentifier}
-                                                            </h5>
-                                                            {docs.length > 0 ? (
-                                                                <ul className="space-y-1 pl-2 border-l-2 border-neutral-200 dark:border-neutral-600 ml-1">
-                                                                    {docs.map(doc => (
-                                                                        <li key={doc.id} className="flex items-center justify-between text-xs py-0.5">
-                                                                            {/* Document Details */}
-                                                                            <span className="flex-1 min-w-0 truncate" title={doc.fileName}>{doc.fileName} ({formatDate(doc.uploadedAt)})</span>
-                                                                            {/* Download Link */}
-                                                                            <a href={doc.fileURL} target="_blank" rel="noopener noreferrer" className="ml-2 p-1 text-primary-600 hover:text-primary-800">
-                                                                                <DocumentArrowDownIcon className="h-4 w-4" />
-                                                                            </a>
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            ) : (
-                                                                <p className="text-xs text-neutral-500 dark:text-neutral-400 pl-3">Нет документов для этого счета.</p>
-                                                            )}
-                                                        </div>
+                                                        <Card key={invoiceId} className="bg-white dark:bg-neutral-800/80 shadow-sm">
+                                                             <CardHeader className="p-3 pb-2 border-b dark:border-neutral-700">
+                                                                <CardTitle className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 flex items-center">
+                                                                    <InboxIcon className="h-4 w-4 inline mr-1.5 opacity-70"/> Счет: {invoiceIdentifier}
+                                                                </CardTitle>
+                                                            </CardHeader>
+                                                            <CardContent className="p-3">
+                                                                {docs.length > 0 ? (
+                                                                    <ul className="space-y-1.5 text-xs">
+                                                                        {docs.map(doc => (
+                                                                            <li key={doc.id} className="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-700/40 p-1 rounded">
+                                                                                <span className="flex-1 min-w-0 truncate mr-2" title={`${doc.fileName} (Загружен: ${formatDate(doc.uploadedAt)})`}>
+                                                                                   {doc.fileName} <span className="text-neutral-500 text-[11px]">({formatDate(doc.uploadedAt)})</span>
+                                                                                </span>
+                                                                                <a href={doc.fileURL} target="_blank" rel="noopener noreferrer" className="ml-2 p-1 rounded-full text-primary-600 hover:bg-primary-100 dark:hover:bg-primary-900/50" title="Скачать">
+                                                                                    <DocumentArrowDownIcon className="h-4 w-4" />
+                                                                                </a>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                ) : (
+                                                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 py-1">Нет документов для этого счета.</p>
+                                                                )}
+                                                            </CardContent>
+                                                        </Card>
                                                     );
                                                 })}
                                             </div>
