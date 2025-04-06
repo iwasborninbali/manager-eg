@@ -326,7 +326,7 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
             fileName: doc.fileName || 'Без имени',
             uploadedAt: doc.uploadedAt || Timestamp.now(),
             date: doc.date || null,
-            fileURL: doc.fileURL,
+            fileURL: doc.fileURL || '',
           });
         }
         return acc;
