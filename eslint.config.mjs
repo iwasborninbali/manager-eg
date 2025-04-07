@@ -11,38 +11,28 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
+// Start with the configurations from compat.extends
 const eslintConfig = [
-  {
-    files: ["**/*.{js,mjs,cjs,jsx,mjsx,ts,tsx,mtsx}"],
-    // ignores: ["functions/**"], // Keep ignoring functions here
     ...compat.extends("next/core-web-vitals", "next/typescript"),
-    languageOptions: {
-        globals: {
-            ...globals.browser,
-            ...globals.node
-        }
+    // Add other configuration objects here
+    {
+        files: ["**/*.{js,mjs,cjs,jsx,mjsx,ts,tsx,mtsx}"],
+        // Optional: Add specific ignores if needed for the main config
+        // ignores: ["some_other_ignored_pattern/**"], 
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                ...globals.node
+            }
+        },
+        // Add any specific rules or settings for the main app files here
+        // rules: { ... }
+    },
+    // Keep ignoring the functions directory if build happens separately
+    {
+        ignores: ["functions/**"]
     }
-  },
-  // Delete the block below starting from here
-  // {
-  //   files: ["functions/src/**/*.ts"],
-  //   languageOptions: {
-  //     globals: {
-  //       ...globals.node,
-  //     },
-  //     parserOptions: {
-  //         project: ["./functions/tsconfig.json"],
-  //     },
-  //   },
-  //   plugins: {
-  //     "@typescript-eslint": tseslint.plugin,
-  //   },
-  //   rules: {
-  //       ...tseslint.configs.recommended.rules,
-  //       "no-console": "off",
-  //   },
-  // }
-  // Delete the block above up to here
+    // Add other distinct configuration objects if needed
 ];
 
 export default eslintConfig;
