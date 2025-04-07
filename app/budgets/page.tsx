@@ -6,7 +6,7 @@ import UploadDepartmentInvoiceDialog from '@/components/budgets/UploadDepartment
 import UploadDepartmentClosingDocDialog from '@/components/budgets/UploadDepartmentClosingDocDialog';
 import InvoiceDetailsDialog, { Invoice } from '@/components/invoices/InvoiceDetailsDialog';
 import { Button } from '@/components/ui/Button';
-import { DocumentArrowUpIcon, DocumentPlusIcon, InboxArrowDownIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import { InboxArrowDownIcon, PaperClipIcon } from '@heroicons/react/24/outline';
 import { Timestamp, collection, query, onSnapshot, orderBy, getDocs, where, documentId } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 

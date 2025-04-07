@@ -1,56 +1,90 @@
 --- Lead Engineer Plan/Analysis ---
-+Хорошо, давайте разберем запрос и составим план.
++Okay, let's break down the plan to integrate role-based access control using Firestore roles within your Next.js application.
 
-**Запрос:** Найти все неиспользуемые импорты в проекте.
+**Analysis of Request:**
 
-**Анализ Контекста:**
-*   Проект представляет собой веб-приложение на Next.js (с App Router), TypeScript, React.
-*   Используется Firebase для бэкенда (Auth, Firestore, Storage) и Cloud Functions.
-*   Стилизация выполняется с помощью Tailwind CSS (v4, судя по `postcss.config.mjs` и `design-system.md`), возможно, с использованием компонентов Shadcn UI (судя по `components.json` и структуре `components/ui`).
-*   Для валидации схем используется Zod (`lib/*Schema.ts`).
-*   В проекте настроен ESLint (`eslint.config.mjs`) и TypeScript (`tsconfig.json`).
-*   Структура проекта включает `app`, `components`, `lib`, `context`, `firebase`, `functions`.
+1.  **Fetch Role:** You need to ensure the user's role(s), stored in Firestore, are fetched upon authentication.
+2.  **Context Provision:** This role information should be made available application-wide via the existing `AuthContext`.
+3.  **Access Control:** In `RootClientLayout.tsx`, you want to check if an *authenticated* user has *any* role assigned. If they don't have a role (or the role field is missing/empty), they should be shown an `AccessDeniedPage` instead of the main application content (`children`).
 
-**План Действий (Высокоуровневый):**
+**Analysis of Provided Context:**
 
-Основная стратегия для обнаружения неиспользуемых импортов — это использование существующих инструментов статического анализа: ESLint и TypeScript Compiler.
+1.  **`context/AuthContext.tsx`:**
+    *   This context provider already handles Firebase Authentication state changes (`onAuthStateChanged`).
+    *   Crucially, it *already fetches* user data from the `users` collection in Firestore using the authenticated user's UID (`getDoc(doc(db, 'users', currentUser.uid))`).
+    *   The `UserData` interface includes `role?: string[]`, indicating the role is expected to be an array of strings in Firestore.
+    *   The context provides both the Firebase `user` object and the Firestore `userData` object (which includes the role).
+2.  **`app/RootClientLayout.tsx`:**
+    *   This component wraps the main application content (`children`) and includes the `AuthProvider`. This is the correct place to implement top-level checks *after* authentication but *before* rendering protected content.
+3.  **Firestore (`firebase/config.ts`)**: Firestore is configured and exported as `db`.
+4.  **Project Structure:** A standard Next.js app router structure. An `AccessDeniedPage` component doesn't seem to exist yet and will need to be created.
 
-1.  **Использование ESLint (Основной метод):**
-    *   **Проверка конфигурации ESLint:** Открыть файл `eslint.config.mjs`. Убедиться, что правило `no-unused-vars` (или его TypeScript-эквивалент `@typescript-eslint/no-unused-vars`) включено и настроено корректно. Обычно оно включено по умолчанию в рекомендуемых конфигурациях (например, `next/core-web-vitals`), но стоит проверить. Это правило отвечает за обнаружение неиспользуемых переменных, включая импорты.
-    *   **Запуск ESLint:** Выполнить команду линтера для всего проекта. Судя по `package.json` (файл не предоставлен, но стандартно), это может быть `npm run lint`, `yarn lint` или `pnpm lint`. Проанализировать вывод на наличие ошибок/предупреждений типа "is defined but never used", относящихся к импортированным сущностям.
-    *   **Автоматическое исправление (Рекомендуется):** Запустить ESLint с флагом `--fix` (например, `npm run lint -- --fix`). ESLint автоматически удалит большинство простых неиспользуемых импортов.
-    *   **Ручной обзор:** Просмотреть изменения, внесенные флагом `--fix`. В некоторых случаях (например, импорты только типов `import type {...}`) могут потребоваться дополнительные настройки правила или ручная проверка.
+**High-Level Plan:**
 
-2.  **Использование TypeScript Compiler (Проверка/Альтернатива):**
-    *   **Проверка `tsconfig.json`:** Убедиться, что в `compilerOptions` установлена опция `"noUnusedLocals": true`. Если ее нет, добавить. Эта опция заставляет компилятор сообщать об ошибках для неиспользуемых локальных переменных, включая импорты.
-    *   **Запуск `tsc`:** Выполнить команду `tsc --noEmit` (или команду сборки проекта, например, `npm run build`). Компилятор проверит весь проект на ошибки типов и неиспользуемые локальные переменные (согласно `tsconfig.json`) без генерации JS-файлов. Это поможет выявить неиспользуемые импорты, но не исправит их автоматически.
+1.  **Verify Firestore Data Structure:**
+    *   Ensure that user documents within your `users` collection in Firestore consistently have a `role` field.
+    *   This field should be an **array of strings** (e.g., `role: ["Manager", "CEO"]`).
+    *   For users who should be denied access, this field might be missing, `null`, or an empty array (`role: []`). Decide on a consistent representation for "no role".
 
-3.  **Специализированные инструменты (При необходимости):**
-    *   Если ESLint и `tsc` по какой-то причине окажутся недостаточными, можно рассмотреть инструменты вроде `ts-prune`, которые специально созданы для поиска неиспользуемого экспортируемого кода и могут косвенно помочь с импортами. Однако, для задачи поиска *неиспользуемых импортов внутри файлов*, ESLint и `tsc` обычно являются наиболее подходящими и уже интегрированными решениями.
+2.  **Enhance `AuthContext.tsx` (Minor Refinement/Verification):**
+    *   The current implementation already fetches `userData` which includes the `role`.
+    *   **Verification:** Double-check that the `UserData` interface accurately reflects the fields in your Firestore `users` documents, especially the `role` field type (`string[]`).
+    *   **No Major Change Needed:** The context already provides the necessary `userData`.
 
-**Потенциальные Проблемы и Рекомендации:**
-*   **Область проверки:** Убедитесь, что конфигурация ESLint и `tsconfig.json` охватывают все необходимые директории (`app`, `components`, `lib`, `context`, `functions/src`).
-*   **Импорты типов:** Правило `@typescript-eslint/no-unused-vars` обычно корректно обрабатывает `import type`, но стоит убедиться, что оно настроено правильно.
-*   **CI/CD:** Рекомендуется интегрировать проверку линтером (шаг 1.2) в ваш CI/CD пайплайн, чтобы предотвратить попадание неиспользуемых импортов в кодовую базу в будущем.
+3.  **Implement Access Control in `RootClientLayout.tsx`:**
+    *   **Consume Context:** Import `useAuth` from `AuthContext` and call it within the `RootClientLayout` component to access `user`, `userData`, and `loading`.
+    *   **Conditional Rendering Logic:**
+        *   Inside the component (before returning JSX or right after the `useAuth` call), implement the check:
+        *   **Handle Loading:** If `loading` is true, render a loading indicator (e.g., a spinner or skeleton screen) to prevent brief flashes of content or the denied page.
+        *   **Check Authentication & Role:**
+            *   If `!loading` and `user` exists (user is authenticated):
+                *   Check if `userData?.role` exists and is a non-empty array (`userData && userData.role && userData.role.length > 0`).
+                *   If the user has roles, render the standard layout: `<ClientLayoutWrapper>{children}</ClientLayoutWrapper>`.
+                *   If the user does *not* have roles (`!userData` or `!userData.role` or `userData.role.length === 0`), render the `<AccessDeniedPage />` component.
+            *   If `!loading` and `user` does *not* exist (user is unauthenticated): The `AuthProvider` or other routing mechanisms likely handle redirection to login. This specific check focuses on authenticated users *without* roles. The existing structure might implicitly handle this, but ensure unauthenticated users don't incorrectly see the `AccessDeniedPage`.
 
-**Итог:** Наиболее эффективный и интегрированный способ — использовать ESLint с правилом `no-unused-vars` (и его TypeScript-аналогом), включая возможность автоматического исправления (`--fix`). Проверка через `tsc` с опцией `noUnusedLocals` служит хорошим дополнением или альтернативным методом верификации.
+4.  **Create `AccessDeniedPage` Component:**
+    *   Create a new component (e.g., `components/auth/AccessDeniedPage.tsx` or `components/ui/AccessDeniedPage.tsx`).
+    *   This component should display a clear message indicating that the user lacks the necessary permissions to access the application.
+    *   Consider adding a "Logout" button by using the `logOut` function from `useAuth`.
+
+**Potential Challenges & Considerations:**
+
+*   **Loading State:** Properly handling the `loading` state from `AuthContext` is crucial to avoid showing the `AccessDeniedPage` or main content prematurely while authentication and Firestore data are still being fetched.
+*   **Firestore Data Consistency:** Ensure all user documents in Firestore have the `role` field managed correctly (even if it's an empty array for users without roles).
+*   **Role Granularity:** This plan addresses the "has any role vs. no role" scenario. More granular control (e.g., specific pages requiring specific roles like "CEO") would require additional checks, potentially within specific layouts or page components, using the `userData.role` array from the context.
+*   **User Experience:** The `AccessDeniedPage` should clearly explain the situation and provide a way out (logout).
+
+This plan leverages the existing structure of `AuthContext` and focuses the access control logic within the `RootClientLayout`, providing a clean, high-level solution.
 
 +-----------------------------------
 +
 +
 --- Final Response (Coder) ---
-+```diff
---- a/tsconfig.json
-+++ b/tsconfig.json
-@@ -7,6 +7,7 @@
-     "skipLibCheck": true,
-     "strict": true,
-     "noEmit": true,
-+    "noUnusedLocals": true, // Add this line to report unused local variables, including imports
-     "esModuleInterop": true,
-     "module": "esnext",
-     "moduleResolution": "bundler",
++```typescript
+// Create this file: components/auth/AccessDeniedPage.tsx
+import React from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/Button';
+import { ExclamationTriangleIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 
+export default function AccessDeniedPage() {
+  const { logOut } = useAuth();
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 dark:bg-neutral-900 text-center p-4">
+      <ExclamationTriangleIcon className="h-16 w-16 text-error-500 dark:text-error-400 mb-4" />
+      <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200 mb-2">Доступ запрещен</h1>
+      <p className="text-neutral-600 dark:text-neutral-400 mb-6 max-w-md">
+        У вас нет необходимых прав для доступа к этому приложению. Пожалуйста, свяжитесь с администратором, если вы считаете, что это ошибка.
+      </p>
+      <Button onClick={logOut} variant="destructive">
+        <ArrowRightOnRectangleIcon className="h-5 w-5 mr-2" />
+        Выйти
+      </Button>
+    </div>
+  );
+}
 ```
 
 +
