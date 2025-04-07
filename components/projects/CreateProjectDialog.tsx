@@ -23,12 +23,14 @@ interface FormData {
   number: string;
   name: string;
   customer: string;
-  budget: string;
+  planned_budget: string;
   duedate: string;
   managerid: string; // Stores the UID of the selected manager
   estimatecostlink: string;
   presentationlink: string;
   planned_revenue: string;
+  usn_tax: string;
+  nds_tax: string;
 }
 
 // Define the props for the dialog component
@@ -46,12 +48,14 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
     number: '',
     name: '',
     customer: '',
-    budget: '',
+    planned_budget: '',
     duedate: '',
     managerid: '',
     estimatecostlink: '',
     presentationlink: '',
-    planned_revenue: ''
+    planned_revenue: '',
+    usn_tax: '',
+    nds_tax: '',
   });
 
   // Fetch managers when the dialog is opened
@@ -84,8 +88,8 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
       // Reset state when dialog closes
       setManagers([]);
       setFormData({
-        number: '', name: '', customer: '', budget: '', duedate: '', managerid: '',
-        estimatecostlink: '', presentationlink: '', planned_revenue: ''
+        number: '', name: '', customer: '', planned_budget: '', duedate: '', managerid: '',
+        estimatecostlink: '', presentationlink: '', planned_revenue: '', usn_tax: '', nds_tax: ''
       });
       setError(null);
       setLoading(false);
@@ -114,59 +118,84 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
     setError(null);
 
     // Basic validation (add more as needed)
-    if (!formData.name || !formData.managerid || !formData.duedate) {
-        setError("Project Name, Manager, and Due Date are required.");
+    if (!formData.name || !formData.managerid || !formData.duedate || !formData.estimatecostlink) {
+        setError("Название проекта, Менеджер, Срок сдачи и Ссылка на смету обязательны.");
+        setLoading(false);
+        return;
+    }
+
+    // Optional: URL validation for links
+    try {
+        if (formData.estimatecostlink) new URL(formData.estimatecostlink);
+        if (formData.presentationlink) new URL(formData.presentationlink);
+    } catch (_) {
+        setError("Пожалуйста, введите действительные URL для ссылок.");
         setLoading(false);
         return;
     }
 
     try {
-      // Prepare the data object according to ProjectData schema
-      const projectData: Omit<ProjectData, 'createdAt' | 'updatedAt' | 'status'> & { // Exclude fields automatically set
-          budget?: number;
-          planned_revenue?: number;
+      // Prepare the data object according to ProjectData schema (updated)
+      // Remove the direct budget field, it will be handled in finalProjectData
+      const baseProjectData: Omit<ProjectData, 'createdAt' | 'updatedAt' | 'status' | 'budget' | 'planned_budget' | 'actual_budget' | 'usn_tax' | 'nds_tax'> & {
+          planned_revenue?: number; // Keep planned_revenue if needed separately
           duedate: Timestamp;
       } = {
-        number: formData.number || undefined, // Use undefined if empty
+        number: formData.number || undefined,
         name: formData.name,
         customer: formData.customer || undefined,
-        budget: formData.budget ? parseFloat(formData.budget) : undefined,
         planned_revenue: formData.planned_revenue ? parseFloat(formData.planned_revenue) : undefined,
         duedate: Timestamp.fromDate(new Date(formData.duedate)),
         managerid: formData.managerid,
-        estimatecostlink: formData.estimatecostlink || undefined,
+        estimatecostlink: formData.estimatecostlink, // Keep as required string
         presentationlink: formData.presentationlink || undefined,
       };
 
-      // Add fields that are set automatically AND map/duplicate budget/revenue
-      const budgetValue = formData.budget ? parseFloat(formData.budget) : undefined;
-      const revenueValue = formData.planned_revenue ? parseFloat(formData.planned_revenue) : undefined;
+      // Parse numbers from form strings, setting undefined if empty or invalid
+      const parseOptionalFloat = (value: string): number | undefined => {
+          const parsed = parseFloat(value);
+          return isNaN(parsed) ? undefined : parsed;
+      };
 
-      const finalProjectData: Omit<ProjectData, 'budget'> & { // Explicitly omit original budget
-        planned_budget?: number;
-        actual_budget?: number;
-        planned_revenue?: number;
-        actual_revenue?: number;
-        status: string;
-        createdAt: Timestamp;
-        updatedAt: Timestamp;
-      } = {
-          ...projectData,
-          planned_budget: budgetValue,   // Set planned_budget from form's budget
-          actual_budget: budgetValue,    // Set actual_budget from form's budget
-          planned_revenue: revenueValue, // Keep planned_revenue from form
-          actual_revenue: revenueValue,  // Set actual_revenue from form's planned_revenue
-          status: 'planning', // Set default status
+      const plannedBudgetValue = parseOptionalFloat(formData.planned_budget);
+      const revenueValue = parseOptionalFloat(formData.planned_revenue);
+      const usnTaxValue = parseOptionalFloat(formData.usn_tax);
+      const ndsTaxValue = parseOptionalFloat(formData.nds_tax);
+
+      // Define the object with the correct full type, ProjectData
+      const finalProjectData: ProjectData = {
+          // Explicitly list all fields from ProjectData
+          number: formData.number || undefined,
+          name: formData.name,
+          customer: formData.customer || undefined,
+          duedate: Timestamp.fromDate(new Date(formData.duedate)),
+          managerid: formData.managerid,
+          estimatecostlink: formData.estimatecostlink, // Now required
+          presentationlink: formData.presentationlink || undefined,
+          planned_revenue: revenueValue,
+          actual_revenue: revenueValue, // Initialize actual same as planned
+          planned_budget: plannedBudgetValue,
+          actual_budget: plannedBudgetValue, // Initialize actual same as planned
+          usn_tax: usnTaxValue,
+          nds_tax: ndsTaxValue,
+          description: undefined, // Defaulting to undefined for creation
+          status: 'planning', // Default status
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (finalProjectData as any).budget;
+      };
+
+      // Remove properties that are undefined (optional fields not filled)
+      Object.keys(finalProjectData).forEach(keyStr => {
+          const key = keyStr as keyof typeof finalProjectData;
+          if (finalProjectData[key] === undefined) {
+              delete finalProjectData[key];
+          }
+       });
 
       // Add the document to the 'projects' collection
       const projectsColRef = collection(db, 'projects');
       const docRef = await addDoc(projectsColRef, finalProjectData);
-      console.log("Document written with ID: ", docRef.id);
+      console.log("Document written with ID: ", docRef.id, " Data:", finalProjectData); // Log final data
 
       onSuccess(docRef.id); // Pass the new project ID back
       onClose(); // Close dialog on success
@@ -235,26 +264,48 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
               onChange={handleChange} 
             />
             
-            {/* Budget and Revenue */}
+            {/* Planned Budget and Revenue */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <Input 
-                 label="Бюджет (RUB)"
-                 type="number" 
-                 id="budget" 
-                 name="budget" 
-                 value={formData.budget} 
-                 onChange={handleChange} 
+               <Input
+                 label="Себестоимость (План, RUB)"
+                 type="number"
+                 id="planned_budget"
+                 name="planned_budget"
+                 value={formData.planned_budget}
+                 onChange={handleChange}
                  leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
                />
-               <Input 
-                 label="Выручка (RUB)" // Changed label
-                 type="number" 
-                 id="planned_revenue" 
-                 name="planned_revenue" 
-                 value={formData.planned_revenue} 
-                 onChange={handleChange} 
+               <Input
+                 label="Выручка (План, RUB)"
+                 type="number"
+                 id="planned_revenue"
+                 name="planned_revenue"
+                 value={formData.planned_revenue}
+                 onChange={handleChange}
                  leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
                />
+            </div>
+            
+            {/* Taxes (USN & NDS) - NEW SECTION */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="УСН 1,5% (RUB)"
+                type="number"
+                id="usn_tax"
+                name="usn_tax"
+                value={formData.usn_tax}
+                onChange={handleChange}
+                leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
+              />
+              <Input
+                label="НДС 5% (RUB, опционально)"
+                type="number"
+                id="nds_tax"
+                name="nds_tax"
+                value={formData.nds_tax}
+                onChange={handleChange}
+                leftElement={<span className="text-sm text-neutral-500 dark:text-neutral-400">₽</span>}
+              />
             </div>
             
             {/* Manager and Due Date */}
@@ -302,19 +353,21 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
             
             {/* Links */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                label="Ссылка на смету"
-                id="estimatecostlink" 
-                name="estimatecostlink" 
-                value={formData.estimatecostlink} 
-                onChange={handleChange} 
+              <Input
+                label="Ссылка на смету *"
+                id="estimatecostlink"
+                name="estimatecostlink"
+                value={formData.estimatecostlink}
+                onChange={handleChange}
+                required
+                error={!formData.estimatecostlink ? "Обязательное поле" : undefined}
               />
-              <Input 
-                label="Ссылка на презентацию" 
-                id="presentationlink" 
-                name="presentationlink" 
-                value={formData.presentationlink} 
-                onChange={handleChange} 
+              <Input
+                label="Ссылка на презентацию"
+                id="presentationlink"
+                name="presentationlink"
+                value={formData.presentationlink}
+                onChange={handleChange}
               />
             </div>
 

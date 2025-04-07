@@ -2,11 +2,13 @@
 
 import React, { Fragment, useState, useEffect, useMemo } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, BanknotesIcon, ReceiptPercentIcon, CurrencyDollarIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, InformationCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Timestamp, doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { CardContent } from '@/components/ui/Card';
+import { calculateFinancialSummary } from '@/lib/reportUtils'; // Import the utility function
 
 // Define Project interface locally for now (consider centralizing later)
 interface Project {
@@ -26,6 +28,8 @@ interface Project {
   status?: string;
   updatedAt?: Timestamp;
   description?: string;
+  usn_tax?: number;
+  nds_tax?: number;
 }
 
 // Define Invoice interface locally
@@ -63,6 +67,7 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
   const [loadingProject, setLoadingProject] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [netProfit, setNetProfit] = useState<number>(0);
 
   // Effect to fetch project data
   useEffect(() => {
@@ -78,11 +83,13 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
           } else {
             setError('Проект не найден.');
             setProject(null);
+            setNetProfit(0);
           }
         } catch (err) {
           console.error("Error fetching project:", err);
           setError('Не удалось загрузить данные проекта.');
           setProject(null);
+          setNetProfit(0);
         } finally {
           setLoadingProject(false);
         }
@@ -95,6 +102,20 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
         if (!isOpen) setLoadingProject(false); // Ensure loading resets if closed
     }
   }, [isOpen, projectId]);
+
+  // Effect to calculate Net Profit when project data is available
+  useEffect(() => {
+    if (project) {
+      const actualRevenue = project.actual_revenue ?? 0;
+      const actualBudget = project.actual_budget ?? 0;
+      const usnTaxAmount = project.usn_tax ?? 0;
+      const ndsTaxAmount = project.nds_tax ?? 0;
+      const calculatedNetProfit = actualRevenue - actualBudget - usnTaxAmount - ndsTaxAmount;
+      setNetProfit(calculatedNetProfit);
+    } else {
+      setNetProfit(0); // Reset if project data is not available
+    }
+  }, [project]); // Recalculate when project data changes
 
   // Effect to fetch invoices for the project
   useEffect(() => {
@@ -131,40 +152,28 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
     };
   }, [isOpen, projectId]);
 
-  // --- Financial Calculations ---
-  const { totalSpent, remainingBudget, plannedMargin, actualMargin } = useMemo(() => {
+  // --- Financial Calculations using Utility Function ---
+  const financialSummary = useMemo(() => {
     if (!project) {
-      return { totalSpent: 0, remainingBudget: 0, plannedMargin: undefined, actualMargin: undefined };
+        // Return a default structure matching FinancialSummaryData
+        return {
+            totalSpent: 0,
+            remainingCost: 0,
+            plannedMargin: undefined,
+            actualMargin: undefined,
+            budgetVariance: undefined,
+            budgetVariancePercent: undefined,
+            revenueVariance: undefined,
+            revenueVariancePercent: undefined,
+            marginVariancePercent: undefined,
+            estimatedNetProfit: undefined,
+            // grossProfit: undefined, // Add if you include grossProfit in FinancialSummaryData
+        };
     }
-
-    const spent = invoices
-      .filter(inv => inv.status !== 'cancelled' && typeof inv.amount === 'number')
-      .reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
-
-    const actualBudget = project.actual_budget ?? 0;
-    const remaining = actualBudget - spent;
-
-    const plannedRev = project.planned_revenue;
-    const plannedBud = project.planned_budget;
-    const actualRev = project.actual_revenue;
-    const actualBud = project.actual_budget;
-
-    let pMargin: number | undefined = undefined;
-    if (typeof plannedRev === 'number' && typeof plannedBud === 'number' && plannedRev !== 0) {
-        pMargin = ((plannedRev - plannedBud) / plannedRev) * 100;
-    }
-
-    let aMargin: number | undefined = undefined;
-    if (typeof actualRev === 'number' && typeof actualBud === 'number' && actualRev !== 0) {
-        aMargin = ((actualRev - actualBud) / actualRev) * 100;
-    }
-
-    return {
-        totalSpent: spent,
-        remainingBudget: remaining,
-        plannedMargin: pMargin,
-        actualMargin: aMargin
-    };
+    // Filter non-cancelled invoices once
+    const nonCancelledInvoices = invoices.filter(inv => inv.status !== 'cancelled');
+    // Call the utility function
+    return calculateFinancialSummary(project, nonCancelledInvoices);
 
   }, [project, invoices]);
 
@@ -173,7 +182,7 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
     if (!project) return [];
     return [
       {
-        name: 'Бюджет',
+        name: 'Себестоимость',
         План: project.planned_budget ?? 0,
         Факт: project.actual_budget ?? 0,
       },
@@ -257,43 +266,61 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
                         <div className="space-y-4 p-4 bg-neutral-50 dark:bg-neutral-700 rounded-lg">
                             <h4 className="text-md font-semibold text-neutral-800 dark:text-neutral-200 border-b pb-2">Основные показатели</h4>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                <span className="text-neutral-600 dark:text-neutral-400">Бюджет (План):</span>
+                                <span className="text-neutral-600 dark:text-neutral-400">Себестоимость (План):</span>
                                 <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget)}</span>
 
-                                <span className="text-neutral-600 dark:text-neutral-400">Бюджет (Факт):</span>
+                                <span className="text-neutral-600 dark:text-neutral-400">Себестоимость (Факт):</span>
                                 <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
 
                                 <span className="text-neutral-600 dark:text-neutral-400">Выручка (План):</span>
                                 <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue)}</span>
 
                                 <span className="text-neutral-600 dark:text-neutral-400">Выручка (Факт):</span>
-                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue)}</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue ?? 0)}</span>
 
-                                <span className="text-neutral-600 dark:text-neutral-400">Маржа (План):</span>
-                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatPercentage(plannedMargin)}</span>
-                                
-                                <span className="text-neutral-600 dark:text-neutral-400">Маржа (Факт):</span>
-                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatPercentage(actualMargin)}</span>
+                                {/* --- Display Calculated Margins & Profits --- */}
+                                <span className="text-neutral-600 dark:text-neutral-400">Валовая Маржа (План):</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatPercentage(financialSummary.plannedMargin)}</span>
+
+                                <span className="text-neutral-600 dark:text-neutral-400">Валовая Маржа (Факт):</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatPercentage(financialSummary.actualMargin)}</span>
+
+                                <span className="text-neutral-600 dark:text-neutral-400">Валовая Прибыль (Факт):</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency((project.actual_revenue ?? 0) - (project.actual_budget ?? 0))}</span>
+
+                                <div className="col-span-2 mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-600"></div> {/* Separator */} 
+
+                                <span className="text-neutral-600 dark:text-neutral-400">УСН (1.5%):</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.usn_tax)}</span>
+
+                                <span className="text-neutral-600 dark:text-neutral-400">НДС (5%):</span>
+                                <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.nds_tax)}</span>
+
+                                <span className="text-neutral-600 dark:text-neutral-400 font-semibold">Чистая Прибыль (Оценка):</span>
+                                <span className={`font-semibold text-right ${financialSummary.estimatedNetProfit ?? 0 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {formatCurrency(financialSummary.estimatedNetProfit)}
+                                </span>
                             </div>
                         </div>
                         
-                        {/* --- Budget Usage Section --- */}
+                        {/* --- Cost Usage Section --- */}
                         <div className="space-y-4 p-4 bg-neutral-50 dark:bg-neutral-700 rounded-lg">
-                           <h4 className="text-md font-semibold text-neutral-800 dark:text-neutral-200 border-b pb-2">Использование бюджета (Факт)</h4>
+                           <h4 className="text-md font-semibold text-neutral-800 dark:text-neutral-200 border-b pb-2">Использование себестоимости (Факт)</h4>
                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                <span className="text-neutral-600 dark:text-neutral-400">Бюджет (Факт):</span>
+                                <span className="text-neutral-600 dark:text-neutral-400">Себестоимость (Факт):</span>
                                 <span className="font-medium text-right text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
 
-                                <span className="text-neutral-600 dark:text-neutral-400">Потрачено (Счета):</span>
-                                <span className="font-medium text-right text-red-600 dark:text-red-400">{formatCurrency(totalSpent)}</span>
+                                {/* Update Label and Value */}
+                                <span className="text-neutral-600 dark:text-neutral-400">Потрачено (Счета+Налоги):</span>
+                                <span className="font-medium text-right text-red-600 dark:text-red-400">{formatCurrency(financialSummary.totalSpent)}</span>
                                 
-                                <span className="text-neutral-600 dark:text-neutral-400 font-semibold">Остаток:</span>
-                                <span className={`font-semibold text-right ${remainingBudget >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                    {formatCurrency(remainingBudget)}
+                                {/* Update Label and Value */}
+                                <span className="text-neutral-600 dark:text-neutral-400 font-semibold">Нераспределенный остаток (Факт):</span>
+                                <span className={`font-semibold text-right ${financialSummary.remainingCost >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                    {formatCurrency(financialSummary.remainingCost)}
                                 </span>
                             </div>
-                            {/* TODO: Add Doughnut chart here later */}
-                             <p className="text-xs text-center text-neutral-500 dark:text-neutral-400 pt-2">Потрачено = Сумма счетов НЕ в статусе &apos;cancelled&apos;.</p>
+                            <p className="text-xs text-center text-neutral-500 dark:text-neutral-400 pt-2">Потрачено = Сумма счетов (не отмененных) + Налоги.</p>
                         </div>
 
                         {/* --- Chart Section --- */}

@@ -7,14 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button'; // Import Button
 import { ChartBarIcon } from '@heroicons/react/24/outline'; // Import icon for financials button
-import { DocumentDuplicateIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button
+import { DocumentDuplicateIcon, WalletIcon, BanknotesIcon as OutlineBanknotesIcon, BanknotesIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button and Wallet
 import { cn } from '@/lib/utils';
 import { translateProjectStatus } from '@/lib/translations'; // Import the translation function
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
 import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
-import { CalendarDaysIcon, BanknotesIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Add icons for card details
+import { CalendarDaysIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Add icons for card details
 
 // Define the structure of a Project document
 interface Project {
@@ -34,6 +34,9 @@ interface Project {
   status?: string;
   updatedAt?: Timestamp;
   description?: string;      // Added back
+  usn_tax?: number;          // Added for display
+  nds_tax?: number;          // Added for display
+  // total_non_cancelled_invoice_amount?: number; // Removed - not used without balance calc
 }
 
 // Function to format Firestore Timestamps (optional, but recommended)
@@ -43,8 +46,8 @@ const formatDate = (timestamp: Timestamp | undefined): string => {
 };
 
 // Function to format currency (optional)
-const formatCurrency = (amount: number | undefined): string => {
-  if (amount === undefined || amount === null) return 'Н/Д'; // Changed N/A to Н/Д
+const formatCurrency = (amount: number | undefined, fallback: string = 'Н/Д'): string => {
+  if (amount === undefined || amount === null) return fallback;
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount); // Adjust locale/currency
 };
 
@@ -282,17 +285,17 @@ const ProjectList: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-2 space-y-2.5 flex-grow">
-                 {/* Use DetailItem-like structure with icons */}
-                 <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-1.5">
+                 {/* Financial Info */}
+                 <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-2">
                     <div className="flex justify-between items-center">
                        <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Бюджет (План):
+                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Себестоимость (План):
                        </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget)}</span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget, 'N/A')}</span>
                     </div>
                     <div className="flex justify-between items-center">
                        <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> {/* Added color */} Бюджет (Факт):
+                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> Себестоимость (Факт):
                        </span>
                        <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
                     </div>
@@ -300,13 +303,26 @@ const ProjectList: React.FC = () => {
                        <span className="flex items-center text-neutral-500 dark:text-neutral-400">
                             <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Выручка (План):
                        </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue)}</span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue, 'N/A')}</span>
                     </div>
                     <div className="flex justify-between items-center">
                        <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                            <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> {/* Added color */} Выручка (Факт):
+                             <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> Выручка (Факт):
                        </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue)}</span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue, 'N/A')}</span>
+                    </div>
+                    {/* Taxes */}
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                           <OutlineBanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-warning-500" /> УСН (1.5%):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.usn_tax, 'N/A')}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
+                           <OutlineBanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-warning-500" /> НДС (5%):
+                       </span>
+                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.nds_tax, 'N/A')}</span>
                     </div>
                  </div>
               </CardContent>

@@ -24,7 +24,7 @@ interface InvoiceReportItem {
 // --- Added Financial Summary Interface ---
 export interface FinancialSummaryData {
     totalSpent: number;
-    remainingBudget: number;
+    remainingCost: number;
     plannedMargin?: number;
     actualMargin?: number;
     budgetVariance?: number;
@@ -55,6 +55,7 @@ export interface ProjectReportData { // Export this interface
     invoiceSummary: { // Added invoice summary
         countByStatus: { [status: string]: number };
         overdueCount: number;
+        pendingAmount: number; // Added pending amount
     };
 }
 
@@ -209,11 +210,11 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
             <div style={insightStyles.insightContainer}>
                 <h2 style={insightStyles.insightTitle}>Ключевые показатели</h2>
                 <ul style={insightStyles.insightList}>
-                    {/* Budget Status */}
+                    {/* Budget Status -> Cost Status */}
                     <li style={insightStyles.insightItem}>
                         <span style={{ ...insightStyles.insightIcon, color: getVarianceColor(financialSummary.budgetVariance, false) }}>💰</span>
                         <span style={{ color: getVarianceColor(financialSummary.budgetVariance, false) }}>
-                            Бюджет: {financialSummary.budgetVariance === undefined || financialSummary.budgetVariance === null || Math.abs(financialSummary.budgetVariance) < 0.01 ? 'В рамках плана' :
+                            Себестоимость: {financialSummary.budgetVariance === undefined || financialSummary.budgetVariance === null || Math.abs(financialSummary.budgetVariance) < 0.01 ? 'В рамках плана' :
                                 financialSummary.budgetVariance < 0 ? `Экономия ${formatCurrency(Math.abs(financialSummary.budgetVariance))}` :
                                 `Перерасход ${formatCurrency(financialSummary.budgetVariance)}`}
                             {(financialSummary.budgetVariancePercent !== undefined && Math.abs(financialSummary.budgetVariancePercent) >= 0.1) && ` (${formatPercentage(financialSummary.budgetVariancePercent)})`}
@@ -248,7 +249,7 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
                     {invoiceSummary.countByStatus['pending_payment'] > 0 && (
                          <li style={insightStyles.insightItem}>
                             <span style={{ ...insightStyles.insightIcon, color: insightStyles.insightTextNeutral.color }}>⏳</span>
-                            <span style={insightStyles.insightTextNeutral}>Ожидают оплаты: {invoiceSummary.countByStatus['pending_payment'] || 0}</span>
+                            <span style={insightStyles.insightTextNeutral}>Ожидают оплаты: {invoiceSummary.countByStatus['pending_payment'] || 0} ({formatCurrency(invoiceSummary.pendingAmount, '0 ₽')})</span>
                         </li>
                     )}
                      {/* Add more insights: Missing Docs? */} 
@@ -263,9 +264,9 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
                     <div>
                         <h3 style={summaryStyles.summarySubTitle}>План / Факт</h3>
                         <div style={summaryStyles.metricGrid}>
-                            <span style={summaryStyles.metricLabel}>Бюджет (План):</span>
+                            <span style={summaryStyles.metricLabel}>Себестоимость (План):</span>
                             <span style={summaryStyles.metricValue}>{formatCurrency(project.planned_budget)}</span>
-                            <span style={summaryStyles.metricLabel}>Бюджет (Факт):</span>
+                            <span style={summaryStyles.metricLabel}>Себестоимость (Факт):</span>
                             <span style={summaryStyles.metricValue}>{formatCurrency(project.actual_budget)}</span>
                             <span style={summaryStyles.metricLabel}>Отклонение:</span>
                             <span style={{...summaryStyles.metricValue, color: getVarianceColor(financialSummary.budgetVariance, false)}}>
@@ -283,7 +284,7 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
 
                             <span style={summaryStyles.metricLabel}>Маржа (План):</span>
                             <span style={summaryStyles.metricValue}>{formatPercentage(financialSummary.plannedMargin)}</span>
-                            <span style={summaryStyles.metricLabel}>Маржа (Факт):</span>
+                            <span style={summaryStyles.metricLabel}>Валовая Маржа (Факт):</span>
                             <span style={summaryStyles.metricValue}>{formatPercentage(financialSummary.actualMargin)}</span>
                             <span style={summaryStyles.metricLabel}>Отклонение:</span>
                             <span style={{...summaryStyles.metricValue, color: getVarianceColor(financialSummary.marginVariancePercent, true)}}>
@@ -291,17 +292,17 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
                             </span>
                         </div>
                     </div>
-                    {/* Budget Usage Block */} 
+                    {/* Budget Usage Block -> Cost Usage Block */}
                     <div>
-                        <h3 style={summaryStyles.summarySubTitle}>Использование бюджета (Факт)</h3>
+                        <h3 style={summaryStyles.summarySubTitle}>Использование себестоимости (Факт)</h3>
                         <div style={summaryStyles.metricGrid}>
-                            <span style={summaryStyles.metricLabel}>Бюджет (Факт):</span>
+                            <span style={summaryStyles.metricLabel}>Себестоимость (Факт):</span>
                             <span style={summaryStyles.metricValue}>{formatCurrency(project.actual_budget)}</span>
-                            <span style={summaryStyles.metricLabel}>Потрачено (Счета):</span>
+                            <span style={summaryStyles.metricLabel}>Потрачено (Счета+Налоги):</span>
                             <span style={summaryStyles.metricValueNegative}>{formatCurrency(financialSummary.totalSpent)}</span>
-                            <span style={{...summaryStyles.metricLabel, fontWeight: 600 }}>Остаток:</span>
-                            <span style={financialSummary.remainingBudget >= 0 ? summaryStyles.metricValuePositive : summaryStyles.metricValueNegative}>
-                                {formatCurrency(financialSummary.remainingBudget)}
+                            <span style={{...summaryStyles.metricLabel, fontWeight: 600 }}>Нераспределенный остаток (Факт):</span>
+                            <span style={financialSummary.remainingCost >= 0 ? summaryStyles.metricValuePositive : summaryStyles.metricValueNegative}>
+                                {formatCurrency(financialSummary.remainingCost)}
                             </span>
                         </div>
                         <BudgetProgressBar spent={financialSummary.totalSpent} budget={project.actual_budget} />
@@ -312,6 +313,8 @@ const ProjectFinancialReport: React.FC<ProjectFinancialReportProps> = ({ data })
                         <div style={summaryStyles.taxBlock}>
                             <h3 style={summaryStyles.summarySubTitle}>Налоги и чистая прибыль (Оценка)</h3>
                             <div style={summaryStyles.metricGrid}>
+                                <span style={{...summaryStyles.metricLabel, fontWeight: 600 }}>Валовая Прибыль (Факт):</span>
+                                <span style={summaryStyles.metricValuePositive}>{formatCurrency((project.actual_revenue ?? 0) - (project.actual_budget ?? 0))}</span>
                                 <span style={summaryStyles.metricLabel}>УСН (1.5%):</span>
                                 <span style={summaryStyles.metricValue}>{formatCurrency(project.usn_tax)}</span>
                                 <span style={summaryStyles.metricLabel}>НДС (5%):</span>

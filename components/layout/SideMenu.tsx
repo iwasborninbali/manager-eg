@@ -40,7 +40,7 @@ export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: S
       icon: <FolderIcon className="h-5 w-5" aria-hidden="true" />
     },
     {
-      name: 'Бюджет отделов',
+      name: 'Бюджеты отделов',
       href: '/budgets',
       icon: <BanknotesIcon className="h-5 w-5" aria-hidden="true" />
     },

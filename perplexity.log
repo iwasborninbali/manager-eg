@@ -1086,3 +1086,609 @@ try {
   logger.error('PDF generation failed', { error, userId });
 }
 ```
+2025-04-07 21:12:10,197 - INFO - Final query sent to Perplexity AI:
+What is the correct syntax and TypeScript types for a Firestore onDocumentWritten trigger in Firebase Cloud Functions v2? Provide a simple example showing how to access event data (before/after snapshots) and event parameters like the document ID.
+2025-04-07 21:12:39,741 - INFO - Perplexity research result:
+Here's the correct syntax for a Firestore `onDocumentWritten` trigger in Firebase Cloud Functions v2 with TypeScript, including event data access:
+
+```typescript
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { Change, FirestoreEvent } from "firebase-functions/v2/firestore";
+import { DocumentSnapshot } from "firebase-admin/firestore";
+
+exports.onUserUpdate = onDocumentWritten(
+  "users/{userId}",
+  (event: FirestoreEvent<Change<DocumentSnapshot> | undefined, { userId: string }>) => {
+    
+    // Get document ID from path parameters
+    const userId = event.params.userId;
+    
+    // Access before/after snapshots
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    // Check if document was created, updated, or deleted
+    if (!event.data?.before.exists && event.data?.after.exists) {
+      console.log(`User ${userId} created:`, afterData);
+    } else if (event.data?.before.exists && event.data?.after.exists) {
+      console.log(`User ${userId} updated:`);
+      console.log("Before:", beforeData);
+      console.log("After:", afterData);
+    } else if (event.data?.before.exists && !event.data?.after.exists) {
+      console.log(`User ${userId} deleted:`, beforeData);
+    }
+  }
+);
+```
+
+### Key TypeScript Types and Features:
+1. **Event Type**: `FirestoreEvent<Change<DocumentSnapshot> | undefined, { userId: string }>`
+2. **Change Object**: Contains `before` and `after` DocumentSnapshots
+3. **Document Snapshots**:
+   - `exists`: Boolean indicating if document exists
+   - `data()`: Returns document data as object
+   - `ref`: DocumentReference to the changed document
+
+### Best Practices:
+1. Always check `exists()` before accessing `data()`
+2. Use type guards for complex data structures
+3. Handle all three possible write cases (create/update/delete)
+4. Access path parameters through `event.params`
+
+### Common Pitfalls:
+1. Not handling `undefined` for `event.data` in TypeScript
+2. Assuming document exists in `after` snapshot (might be deleted)
+3. Forgetting that the `before` snapshot is undefined for creations
+4. Not accounting for Firestore's data typing differences from TypeScript
+
+[1][5][7][10]
+
+For Firestore triggers in 2nd-gen functions, ensure you're using the v2 imports and consider using `defineSecret()` for API keys if needed. The event parameters are strongly typed based on your path pattern, providing type safety for wildcard values like `{userId}`. [1][5]
+2025-04-07 21:20:53,867 - INFO - Final query sent to Perplexity AI:
+Show an example of a modern ESLint flat config file (e.g., eslint.config.js) suitable for a Firebase Cloud Functions directory using TypeScript. It should include recommended TypeScript rules (@typescript-eslint/recommended), Node.js globals, ignore build output (e.g., /lib folder), and optionally integrate rules similar to eslint-config-google or eslint-plugin-import.
+2025-04-07 21:21:31,325 - INFO - Perplexity research result:
+Here's a comprehensive ESLint flat config for Firebase Cloud Functions with TypeScript, incorporating modern practices and your requirements:
+
+```javascript
+// eslint.config.js
+import { defineFlatConfig } from '@eslint/config';
+import js from '@eslint/js';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+import globals from 'globals';
+
+export default defineFlatConfig([
+  {
+    ignores: ['**/lib/**'], // Ignore transpiled output
+  },
+  {
+    files: ['**/*.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: './tsconfig.json',
+        sourceType: 'commonjs', // Required for Firebase Functions
+      },
+      globals: {
+        ...globals.node, // Node.js globals
+        ...globals.es2021, // ES2021 features
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...tsPlugin.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'error', // Google-style: Prevent console logs
+      'import/order': [ // Optional import plugin rule
+        'error',
+        {
+          groups: ['builtin', 'external', 'parent', 'sibling', 'index'],
+          'newlines-between': 'always',
+        },
+      ],
+    },
+  },
+  // Optional Google style-inspired rules
+  {
+    rules: {
+      'comma-dangle': ['error', 'never'],
+      'quotes': ['error', 'single'],
+      'max-len': ['error', { code: 120, ignoreUrls: true }],
+      'object-curly-spacing': ['error', 'always'],
+    },
+  },
+]);
+```
+
+Key features included:
+1. **TypeScript Support**:
+   - Uses `@typescript-eslint/parser` and recommended rules
+   - Configures TypeScript project references via `tsconfig.json`
+   - Custom `no-unused-vars` with underscore ignore pattern [3][7]
+
+2. **Firebase-specific Configuration**:
+   - Ignores `/lib` build directory [1][5]
+   - CommonJS module system (required for Firebase Functions) [9][10]
+
+3. **Node.js Environment**:
+   - Includes Node.js globals (require, module, etc.) [2][10]
+   - ES2021 global support for modern features
+
+4. **Style Rules**:
+   - Google-style inspired rules (comma dangle, quotes, etc.)
+   - Optional `import/order` rule for module organization
+
+To use this configuration:
+
+1. Install required dependencies:
+```bash
+npm install --save-dev @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint eslint-plugin-import
+```
+
+2. Create `eslint.config.js` with the above content
+
+3. Add this to your `package.json` scripts:
+```json
+{
+  "scripts": {
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
+  }
+}
+```
+
+For Firebase deployment compatibility:
+- Ensure your `firebase.json` includes TypeScript transpilation:
+```json
+{
+  "functions": {
+    "predeploy": "npm --prefix functions run build",
+    "source": "functions"
+  }
+}
+```
+
+This configuration provides strict linting while accommodating Firebase Functions' specific requirements and TypeScript best practices [1][5][9]. The optional rules section can be adjusted based on team preferences.
+2025-04-07 21:23:00,015 - INFO - Final query sent to Perplexity AI:
+ESLint 8 flat config .mjs ERR_MODULE_NOT_FOUND Cannot find package 'typescript-eslint' version 5.x node
+2025-04-07 21:23:39,675 - INFO - Perplexity research result:
+To resolve the `ERR_MODULE_NOT_FOUND` error when using ESLint 8's flat config with `.mjs` files and TypeScript, follow these key solutions:
+
+### 1. Update TypeScript ESLint Dependencies
+Ensure you're using compatible versions:
+```bash
+npm install @typescript-eslint/eslint-plugin@6 @typescript-eslint/parser@6 --save-dev
+```
+Older versions (e.g., v5.x) may not support flat config or modern module resolution[2][9].
+
+### 2. Configure TypeScript Module Resolution
+Update `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "node16" // or "bundler"/"nodenext"
+  }
+}
+```
+This resolves path mapping issues in ESM environments[2][8].
+
+### 3. Use Full File Extensions
+Explicitly include `.js` extensions in imports:
+```javascript
+// eslint.config.mjs
+import tsPlugin from '@typescript-eslint/eslint-plugin/index.js';
+import tsParser from '@typescript-eslint/parser/index.js';
+```
+Node.js requires explicit extensions for ESM imports[5][8].
+
+### 4. Modern ESLint Flat Config Template
+```javascript
+// eslint.config.mjs
+import eslintJs from '@eslint/js';
+import tsESLint from 'typescript-eslint';
+import globals from 'globals';
+
+export default [
+  eslintJs.configs.recommended,
+  ...tsESLint.configs.recommended,
+  {
+    files: ['**/*.ts', '**/*.mts'],
+    plugins: { '@typescript-eslint': tsESLint },
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: './tsconfig.json'
+      },
+      globals: {
+        ...globals.node
+      }
+    }
+  }
+];
+```
+
+### 5. Verify Required Dependencies
+Install core packages:
+```bash
+npm install @eslint/js @typescript-eslint/parser @typescript-eslint/eslint-plugin globals --save-dev
+```
+
+### 6. Update Import Resolver Configuration
+For projects using `eslint-plugin-import`:
+```javascript
+{
+  settings: {
+    'import/resolver': {
+      typescript: {
+        project: './tsconfig.json'
+      }
+    }
+  }
+}
+```
+Install resolver package:
+```bash
+npm install eslint-import-resolver-typescript --save-dev
+```
+
+These changes address the core issues causing module resolution failures in modern ESLint/TypeScript setups. The error typically stems from mismatched package versions, incomplete ESM configuration, or missing file extensions[2][5][8].
+2025-04-07 21:26:20,257 - INFO - Final query sent to Perplexity AI:
+ESLint 8 flat config .mjs ERR_MODULE_NOT_FOUND Cannot find package 'typescript-eslint' imported from eslint.config.mjs. Analyze the provided config files.
+
+Attached file contents:
+File: functions/eslint.config.mjs
+import globals from "globals";
+import tseslint from "typescript-eslint";
+import js from "@eslint/js"; // Импортируем базовый JS конфиг
+
+export default [
+  // Базовые рекомендованные правила ESLint
+  js.configs.recommended,
+
+  // Рекомендованные правила TypeScript ESLint
+  // Используем spread operator (...) для включения массива конфигураций
+  ...tseslint.configs.recommended,
+
+  // Конфигурация для ваших TypeScript файлов
+  {
+    files: ["src/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node, // Node.js environment
+        ...globals.es2021, // Modern ES features
+      },
+      parser: tseslint.parser, // Указываем парсер явно
+      parserOptions: {
+        project: ["./tsconfig.json"], 
+        tsconfigRootDir: import.meta.dirname, 
+        sourceType: "module",
+      },
+    },
+    plugins: {
+      // Регистрируем плагин
+      '@typescript-eslint': tseslint.plugin,
+    },
+    rules: {
+      // Ваши кастомные правила или переопределения
+      "quotes": ["error", "double"],
+      "object-curly-spacing": ["error", "always"],
+      "indent": ["error", 2],
+      "max-len": ["warn", { "code": 120, "ignoreUrls": true }],
+      // Правила из google стиля, если нужны (адаптированы):
+      "require-jsdoc": "off",
+      "valid-jsdoc": "off",
+      "no-unused-vars": "off", // Отключаем базовое
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-explicit-any": "warn", 
+      "no-console": "off",
+      // Правила для import (если eslint-plugin-import установлен и настроен отдельно):
+      // "import/no-unresolved": "off", 
+    },
+  },
+
+  // Секция игнорирования
+  {
+    ignores: [
+      "lib/", // Игнорируем папку с JS бандлом
+      "node_modules/",
+    ],
+  }
+];
+
+
+File: functions/package.json
+{
+  "name": "functions",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@typescript-eslint/eslint-plugin": "^8.29.0",
+    "@typescript-eslint/parser": "^8.29.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^4.9.0"
+  },
+  "private": true
+}
+
+
+File: functions/tsconfig.json
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "esModuleInterop": true,
+    "moduleResolution": "nodenext",
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "outDir": "lib",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2017"
+  },
+  "compileOnSave": true,
+  "include": [
+    "src"
+  ]
+}
+
+
+
+2025-04-07 21:26:50,735 - INFO - Perplexity research result:
+The error occurs due to incorrect package imports and version mismatches in your ESLint flat config setup. Here's the analysis and solution:
+
+## Primary Issues & Fixes
+
+### 1. Incorrect TypeScript ESLint Import
+```diff
+- import tseslint from "typescript-eslint";
++ import tseslint from "@typescript-eslint";
+```
+The correct package scope is `@typescript-eslint`, not `typescript-eslint`[2][5][8].
+
+### 2. Version Incompatibilities
+Update devDependencies in `package.json`:
+```json
+"devDependencies": {
+  "@eslint/js": "^9.24.0",
+  "@typescript-eslint/eslint-plugin": "^8.29.0",
+  "@typescript-eslint/parser": "^8.29.0",
+  "eslint": "^9.0.0",  // Required for full flat config support
+  "typescript": "^5.0.0"
+}
+```
+ESLint v9+ is recommended for stable flat config support[1][3][7].
+
+### 3. Missing ES Module Configuration
+Add to `package.json`:
+```json
+{
+  "type": "module",
+  "engines": { "node": ">=18.12.0" }
+}
+```
+Ensures proper ES module resolution[4][6].
+
+## Corrected ESLint Config
+```javascript
+import globals from 'globals';
+import js from '@eslint/js';
+import * as tseslint from '@typescript-eslint/eslint-plugin';
+import parser from '@typescript-eslint/parser';
+
+export default [
+  js.configs.recommended,
+  {
+    files: ['src/**/*.ts'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.es2021 },
+      parser,
+      parserOptions: {
+        project: './tsconfig.json',
+        tsconfigRootDir: import.meta.dirname,
+        sourceType: 'module'
+      }
+    },
+    plugins: { '@typescript-eslint': tseslint },
+    rules: {
+      'quotes': ['error', 'double'],
+      'object-curly-spacing': ['error', 'always'],
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn'
+    }
+  },
+  { ignores: ['lib/', 'node_modules/'] }
+];
+```
+
+## Key Changes
+1. **Proper Module Imports**: Use scoped `@typescript-eslint` packages[2][8]
+2. **Explicit Parser Import**: Separate parser from plugin[5][9]
+3. **Version Alignment**: ESLint v9 + TypeScript ESLint v8.29+[1][5]
+4. **ES Module Support**: Added `"type": "module"`[4][6]
+
+After making these changes, run:
+```bash
+npm install
+npm dedupe
+npm run lint
+```
+
+## Common Pitfalls to Avoid
+1. Mixing CJS/ESM imports
+2. Using legacy ESLint config patterns
+3. Outdated TypeScript/ESLint versions
+4. Incorrect module resolution in tsconfig[2][4]
+
+This configuration follows modern ESLint flat config best practices while maintaining compatibility with TypeScript and Firebase Functions requirements[1][3][7][9].
+2025-04-07 22:26:43,222 - INFO - Final query sent to Perplexity AI:
+Why does my linter keep thinking 'import * as functions from "firebase-functions"' is importing from v2 (.../lib/v2/index), causing errors on .region and EventContext when trying to write a v1 Firestore function? See attached index.ts.
+
+Attached file contents:
+File: functions/src/index.ts
+/**
+ * Import function triggers from their respective submodules:
+ *
+ * import {onCall} from "firebase-functions/v2/https";
+ * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ */
+
+// import { onRequest } from "firebase-functions/v2/https"; // Удаляем
+import * as logger from "firebase-functions/logger";
+// import * as functions from "firebase-functions"; // Неправильный импорт
+import * as functions from "firebase-functions"; // Правильный импорт v1
+// import * as admin from "firebase-admin"; // Старый импорт
+import admin from "firebase-admin"; // Новый импорт по умолчанию
+import { getFirestore } from "firebase-admin/firestore"; // Импорт для Firestore
+// Убираем импорты v2
+// import { onDocumentWritten, FirestoreEvent, Change as ChangeV2 } from "firebase-functions/v2/firestore"; 
+import { DocumentSnapshot } from "firebase-admin/firestore";
+import { Change } from "firebase-functions"; // Change можно оставить так
+// import { region, EventContext, Change } from "firebase-functions"; // Неправильно
+// import firestore from "firebase-functions/v1/firestore"; // Не нужно при импорте * as functions
+
+// Start writing functions
+// https://firebase.google.com/docs/functions/typescript
+
+// export const helloWorld = onRequest((request, response) => {
+//   logger.info("Hello logs!", {structuredData: true});
+//   response.send("Hello from Firebase!");
+// });
+
+// Инициализация Firebase Admin SDK
+// Это позволяет функциям взаимодействовать с Firestore от имени сервисного аккаунта
+admin.initializeApp();
+// const db = admin.firestore(); // Старый способ получения db
+const db = getFirestore(); // Новый способ получения db
+
+/**
+ * Интерфейс для данных счета (упрощенный, для функции)
+ */
+interface InvoiceData {
+  projectId?: string;
+  amount?: number;
+  status?: string;
+}
+
+/**
+ * Cloud Function v1, которая обновляет агрегированную сумму
+ * не отмененных счетов в документе проекта при
+ * создании, обновлении или удалении счета.
+ * Использует v1 SDK.
+ */
+export const handleInvoiceWriteUpdateProjectV1 = functions
+  .region("eur3") // Используем functions.region
+  .firestore.document("invoices/{invoiceId}")
+  .onWrite(async (change: Change<DocumentSnapshot>, context: functions.EventContext) => { // Используем functions.EventContext
+    const invoiceId = context.params.invoiceId; 
+
+    const invoiceDataAfter = change.after.exists ? (change.after.data() as InvoiceData) : null;
+    const invoiceDataBefore = change.before.exists ? (change.before.data() as InvoiceData) : null;
+
+    const projectId = invoiceDataAfter?.projectId ?? invoiceDataBefore?.projectId;
+
+    if (!projectId) {
+      logger.log(`Invoice ${invoiceId} has no projectId. Skipping update.`);
+      return; 
+    }
+
+    logger.log(`(v1) Detected change in invoice ${invoiceId} for project ${projectId}. Recalculating total.`);
+
+    const invoicesQuery = db.collection("invoices")
+      .where("projectId", "==", projectId)
+      .where("status", "!=", "cancelled");
+
+    let totalAmount = 0;
+    try {
+      const querySnapshot = await invoicesQuery.get();
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as InvoiceData;
+        const amount = data.amount ?? 0;
+        totalAmount += amount;
+      });
+
+      logger.log(`(v1) Recalculated total for project ${projectId}: ${totalAmount}`);
+
+      const projectRef = db.collection("projects").doc(projectId);
+      await projectRef.update({
+        total_non_cancelled_invoice_amount: totalAmount,
+      });
+
+      logger.log(`(v1) Successfully updated total_non_cancelled_invoice_amount for project ${projectId} to ${totalAmount}.`);
+
+    } catch (error) {
+      logger.error(`(v1) Error updating total for project ${projectId}:`, error);
+    }
+  }
+);
+
+// Можно добавить другие функции здесь, если они понадобятся
+
+
+
+2025-04-07 22:27:20,329 - INFO - Perplexity research result:
+The linter confusion arises because you're mixing Firebase Functions v1 and v2 imports/types. Here's the solution:
+
+```typescript
+// CORRECTED IMPORTS (v1)
+import * as functions from "firebase-functions/v1"; // Explicit v1 import
+import { EventContext } from "firebase-functions/v1"; // Import v1 types
+import * as logger from "firebase-functions/logger";
+import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+
+// Initialize Firebase Admin
+admin.initializeApp();
+const db = getFirestore();
+
+// PROPER V1 FUNCTION DECLARATION
+export const handleInvoiceWriteUpdateProjectV1 = functions
+  .region("eur3")
+  .firestore.document("invoices/{invoiceId}")
+  .onWrite(async (change: functions.Change<DocumentSnapshot>, 
+                context: EventContext) => { // Now uses correct v1 types
+    // ... rest of your implementation
+  });
+```
+
+Key fixes from your code:
+1. **Explicit v1 Import**: Changed from generic `firebase-functions` to `firebase-functions/v1` [1]
+2. **Type References**: Use types from v1 subpackage instead of mixed imports
+3. **Avoid Root Imports**: Never use `import * as functions from "firebase-functions"` as this can resolve to v2 types
+
+This resolves the linting errors because:
+- V2 functions use a different architecture (modular triggers vs chained methods) [3][4]
+- `.region()` is only available in v1's chaining syntax [1]
+- `EventContext` type differs between versions (v1 uses full objects, v2 uses lightweight types) [4][6]
+
+If you need to mix v1/v2 functions (not recommended), use separate files and explicit subpackage imports to prevent type collisions [2].

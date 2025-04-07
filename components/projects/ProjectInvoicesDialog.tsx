@@ -8,6 +8,7 @@ import {
     ClockIcon,
     CheckCircleIcon,
     ExclamationTriangleIcon,
+    ExclamationCircleIcon,
     UserCircleIcon,
     DocumentArrowDownIcon
 } from '@heroicons/react/24/solid';
@@ -398,8 +399,13 @@ const ProjectInvoicesDialog: React.FC<ProjectInvoicesDialogProps> = ({ isOpen, o
                                                                     {/* Closing Docs Indicator */} 
                                                                     {loadingAllClosingDocs ? (
                                                                         <span className="mt-1.5 text-xs text-neutral-400 dark:text-neutral-500 block">Загрузка док...</span>
-                                                                    ) : closingDocsCount > 0 && (
+                                                                    ) : closingDocsCount > 0 ? (
                                                                         <span className="mt-1.5 text-xs text-success-600 dark:text-success-400 font-medium block">Есть закр. док. ({closingDocsCount})</span>
+                                                                    ) : (
+                                                                        <span className="mt-1.5 text-xs text-warning-600 dark:text-warning-400 font-medium block flex items-center">
+                                                                            <ExclamationCircleIcon className="h-3.5 w-3.5 mr-1 inline-block"/>
+                                                                            Нет закр. док.
+                                                                        </span>
                                                                     )}
                                                                 </div>
                                                                 {/* Actions (Download & Details Button) */} 

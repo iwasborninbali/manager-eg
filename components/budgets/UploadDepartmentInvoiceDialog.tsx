@@ -21,6 +21,7 @@ import { z } from 'zod'; // Import Zod
 // Keep existing schema imports, but will modify schema usage
 import { departmentInvoiceSchema as baseDepartmentInvoiceSchema, DepartmentInvoiceData } from '@/lib/departmentInvoiceSchema';
 import SupplierCombobox, { SupplierOption } from '@/components/shared/SupplierCombobox';
+import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 
 // Use the base schema directly as it already defines the required fields for the form
 const formSchema = baseDepartmentInvoiceSchema;
@@ -433,8 +434,12 @@ export default function UploadDepartmentInvoiceDialog({ isOpen, onClose }: Uploa
                         <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={isSubmitting}>
                             Отмена
                         </Button>
-                        <Button type="submit" disabled={isSubmitting || !selectedFile || uploadProgress > 0 && uploadProgress < 100}>
-                            {isSubmitting ? (uploadProgress > 0 ? `Загрузка... ${Math.round(uploadProgress)}%` : 'Сохранение...') : 'Загрузить счет'}
+                        <Button
+                          type="submit"
+                          disabled={isSubmitting || !selectedFile || uploadProgress > 0 && uploadProgress < 100}
+                          leftIcon={<CloudArrowUpIcon className="h-5 w-5" />}
+                        >
+                          Загрузить счет для себестоимости отдела
                         </Button>
                     </div>
                 </form>

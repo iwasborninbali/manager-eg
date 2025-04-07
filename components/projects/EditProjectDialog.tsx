@@ -54,6 +54,12 @@ interface EditProjectFormData {
     nds_tax?: number;
 }
 
+// Define Invoice interface used in calculation (or import)
+interface InvoiceForCalc {
+  amount?: number;
+  status?: string;
+}
+
 interface EditProjectDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -141,7 +147,6 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Keep the null check for project
     if (!project) {
         setError("Ошибка: Данные проекта отсутствуют.");
         return;
@@ -150,28 +155,70 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
     setLoading(true);
     setError(null);
 
-    // Revert update logic to previous state to fix type errors
     try {
-       // Prepare data for update, converting date string back to Timestamp
-       const updateData: Partial<Project> = {
-         name: formData.name,
-         number: formData.number,
-         customer: formData.customer,
-         duedate: formData.duedate ? Timestamp.fromDate(new Date(formData.duedate)) : undefined,
-         // Map form fields to the correct Project interface fields for Firestore update
-         actual_budget: formData.budget ? parseFloat(String(formData.budget)) : undefined,
-         actual_revenue: formData.planned_revenue ? parseFloat(String(formData.planned_revenue)) : undefined,
-         managerid: formData.managerid, // Include managerid
-         estimatecostlink: formData.estimatecostlink,
-         presentationlink: formData.presentationlink,
-         status: formData.status,
-         description: formData.description,
-         usn_tax: formData.usn_tax ? parseFloat(String(formData.usn_tax)) : undefined,
-         nds_tax: formData.nds_tax ? parseFloat(String(formData.nds_tax)) : undefined,
-         updatedAt: Timestamp.now(),
-       };
+        // Get the new status from the form
+        const newStatus = formData.status;
+        const isCompleting = newStatus === 'completed' && project.status !== 'completed';
 
-       // Remove undefined, null, or empty string fields before updating
+        let finalActualBudget = formData.budget ? parseFloat(String(formData.budget)) : undefined;
+
+        // --- Auto-calculate actual_budget if project is being completed --- 
+        if (isCompleting) {
+            console.log(`Project ${project.id} is being completed. Calculating final actual budget...`);
+            try {
+                // Fetch non-cancelled invoices for this project
+                const invoicesRef = collection(db, 'invoices');
+                const q = query(invoicesRef, 
+                    where('projectId', '==', project.id),
+                    where('status', '!=', 'cancelled')
+                );
+                const invoiceSnap = await getDocs(q);
+                let invoiceSum = 0;
+                invoiceSnap.forEach((docSnap) => {
+                    const invoiceData = docSnap.data() as InvoiceForCalc;
+                    invoiceSum += invoiceData.amount ?? 0;
+                });
+                console.log(`Sum of non-cancelled invoices: ${invoiceSum}`);
+
+                // Calculate total spent (invoices + taxes)
+                const usnTax = formData.usn_tax ? parseFloat(String(formData.usn_tax)) : (project.usn_tax ?? 0); // Use form value or existing project value
+                const ndsTax = formData.nds_tax ? parseFloat(String(formData.nds_tax)) : (project.nds_tax ?? 0); // Use form value or existing project value
+                const totalSpentWithTaxes = invoiceSum + usnTax + ndsTax;
+                console.log(`Calculated total spent (invoices + taxes): ${totalSpentWithTaxes}`);
+
+                // Set the finalActualBudget to the calculated total spent
+                finalActualBudget = totalSpentWithTaxes;
+                console.log(`Setting actual_budget to calculated total: ${finalActualBudget}`);
+
+            } catch (invoiceError) {
+                console.error("Error calculating final budget from invoices:", invoiceError);
+                setError("Ошибка при расчете итоговой себестоимости из счетов. Себестоимость не будет обновлена автоматически.");
+                // Do not proceed with the status change if calculation fails?
+                // Or proceed but don't update the budget? For now, we proceed but budget won't be auto-updated.
+                finalActualBudget = formData.budget ? parseFloat(String(formData.budget)) : undefined; // Revert to form value
+            }
+        }
+        // --- End of auto-calculation --- 
+
+        // Prepare data for update
+        const updateData: Partial<Project> = {
+            name: formData.name,
+            number: formData.number,
+            customer: formData.customer,
+            duedate: formData.duedate ? Timestamp.fromDate(new Date(formData.duedate)) : undefined,
+            actual_budget: finalActualBudget, // Use the potentially auto-calculated value
+            actual_revenue: formData.planned_revenue ? parseFloat(String(formData.planned_revenue)) : undefined,
+            managerid: formData.managerid,
+            estimatecostlink: formData.estimatecostlink,
+            presentationlink: formData.presentationlink,
+            status: newStatus, // Use the new status from form
+            description: formData.description,
+            usn_tax: formData.usn_tax ? parseFloat(String(formData.usn_tax)) : undefined,
+            nds_tax: formData.nds_tax ? parseFloat(String(formData.nds_tax)) : undefined,
+            updatedAt: Timestamp.now(),
+        };
+
+       // Clean updateData (remove undefined/null/empty)
        Object.keys(updateData).forEach(keyStr => {
          const key = keyStr as keyof Partial<Project>;
          if (updateData[key] === undefined || updateData[key] === null || updateData[key] === '') {
@@ -270,10 +317,10 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ isOpen, onClose, 
                     </div>
                   </div>
 
-                  {/* Row 3: Budget & Planned Revenue */}
+                  {/* Row 3: Budget & Planned Revenue -> Actual Cost & Actual Revenue */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="budget" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Бюджет (Факт, RUB)</label>
+                      <label htmlFor="budget" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Себестоимость (Факт, RUB)</label>
                       <Input type="number" id="budget" name="budget" value={formData.budget ?? ''} onChange={handleChange} leftElement={<span className="text-sm">₽</span>} disabled={loading} />
                     </div>
                      <div>

@@ -2,7 +2,7 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, CalendarDaysIcon, BanknotesIcon, DocumentTextIcon, DocumentArrowDownIcon, CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, BuildingLibraryIcon, HashtagIcon, ChatBubbleLeftRightIcon, InboxIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, CalendarDaysIcon, BanknotesIcon, DocumentTextIcon, DocumentArrowDownIcon, CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, BuildingLibraryIcon, HashtagIcon, ChatBubbleLeftRightIcon, InboxIcon, TagIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';
@@ -43,28 +43,28 @@ interface Supplier {
     tin?: string; // ИНН
 }
 
-// Define ClosingDocument interface (align with ProjectDetailsDialog)
-// Consider exporting this too
+// Define ClosingDocument interface (consistent structure)
 interface ClosingDocument {
     id: string;
-    projectId: string;
-    invoiceId: string;
+    projectId?: string; // Optional for project docs
+    departmentInvoiceId?: string; // Optional for department docs
     fileName: string;
     fileURL: string;
     uploadedAt: Timestamp;
-    type?: 'contract' | 'upd' | 'act' | 'other';
+    type?: 'contract' | 'upd' | 'act' | 'other' | null;
     number?: string;
-    date?: Timestamp;
-    comment?: string;
+    date?: Timestamp | null;
+    comment?: string | null;
 }
 
 interface InvoiceDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   invoice: Invoice | null;
-  project: Project | null; // Add project prop
-  closingDocuments?: ClosingDocument[]; // Pass associated closing docs
-  loadingClosingDocs?: boolean; // Pass loading state
+  project: Project | null; // Keep for project context (can be null for dept invoice)
+  closingDocuments?: ClosingDocument[]; // For project closing docs
+  departmentClosingDocuments?: ClosingDocument[]; // For department closing docs
+  loadingClosingDocs?: boolean; // Single loading state is fine
 }
 
 // Helper functions (import or define)
@@ -78,18 +78,24 @@ const formatCurrency = (amount: number | undefined): string => {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount);
 };
 
-// Helper component for Invoice Status Badge (import or define)
+// Helper component for Invoice Status Badge (moved outside main component for clarity)
 const InvoiceStatusBadge: React.FC<{ status?: 'pending_payment' | 'paid' | 'overdue' | 'cancelled' }> = ({ status }) => {
-  if (!status) return <span className="text-neutral-500">N/A</span>;
+  if (!status) return null; // Render nothing if no status
   const statusConfig = {
-    pending_payment: { text: 'Ожидает оплаты', color: 'text-warning-700 dark:text-warning-300', icon: <ClockIcon className="h-3 w-3 inline-block mr-1" /> },
-    paid: { text: 'Оплачен', color: 'text-success-700 dark:text-success-300', icon: <CheckCircleIcon className="h-3 w-3 inline-block mr-1" /> },
-    overdue: { text: 'Просрочен', color: 'text-error-700 dark:text-error-300', icon: <ExclamationTriangleIcon className="h-3 w-3 inline-block mr-1" /> },
-    cancelled: { text: 'Отменен', color: 'text-neutral-500 dark:text-neutral-400', icon: <XMarkIcon className="h-3 w-3 inline-block mr-1" /> }
+    pending_payment: { text: 'Ожидает оплаты', color: 'text-warning-700 dark:text-warning-300', icon: ClockIcon },
+    paid: { text: 'Оплачен', color: 'text-success-700 dark:text-success-300', icon: CheckCircleIcon },
+    overdue: { text: 'Просрочен', color: 'text-error-700 dark:text-error-300', icon: ExclamationTriangleIcon },
+    cancelled: { text: 'Отменен', color: 'text-neutral-500 dark:text-neutral-400', icon: XMarkIcon }
   };
   const config = statusConfig[status];
-  if (!config) return <span className="text-neutral-500">{status}</span>;
-  return <span className={cn('font-medium', config.color)}>{config.icon}{config.text}</span>;
+  if (!config) return <Badge variant="secondary">{status}</Badge>; // Fallback for unknown status
+  const IconComponent = config.icon;
+  return (
+    <span className={cn('inline-flex items-center text-xs font-medium', config.color)}>
+      <IconComponent className="h-3.5 w-3.5 mr-1" />
+      {config.text}
+    </span>
+  );
 };
 
 const DetailItem: React.FC<{ label: string; value?: string | number | React.ReactNode; icon?: React.ReactNode; fullWidth?: boolean }> = ({ label, value, icon, fullWidth }) => (
@@ -108,8 +114,9 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
     isOpen, 
     onClose, 
     invoice, 
-    project, 
-    closingDocuments = [], // Default to empty array
+    project, // Still receive project, but might be null
+    closingDocuments = [], // Default project docs
+    departmentClosingDocuments = [], // Default department docs
     loadingClosingDocs = false 
 }) => {
   const [supplierData, setSupplierData] = useState<Supplier | null>(null);
@@ -146,9 +153,11 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
     }
   }, [invoice?.supplierId, isOpen]);
 
-  // Use project details directly from props
-  const projectName = project?.name || 'Проект не найден';
-  const projectNumber = project?.number || 'N/A';
+  // Determine which document list to use
+  const documentsToDisplay = project ? closingDocuments : departmentClosingDocuments;
+  // Determine project name/number or indicate department context
+  const contextName = project ? project.name : 'Бюджет отдела';
+  const contextNumber = project ? project.number : 'N/A';
 
   if (!invoice) return null;
 
@@ -182,13 +191,19 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
             >
               <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-neutral-800 p-6 text-left align-middle shadow-xl transition-all">
                 <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center">
-                  <span>
-                    {!loadingClosingDocs && closingDocuments.length === 0 && (
-                        <span title="Нет закрывающих документов" className="mr-1">❗️</span>
-                    )}
-                    Детали счета: {loadingSupplier ? 'Загрузка...' : (supplierData?.name || 'Поставщик не найден')}
-                  </span>
-                  {invoice.isUrgent && <Badge className="ml-2 bg-error-100 text-error-700 dark:bg-error-900/50 dark:text-error-300">Срочно</Badge>}
+                  {/* Title content with flex alignment */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                     {/* Invoice Status Icon/Badge */}
+                     {invoice.status && <InvoiceStatusBadge status={invoice.status} />}
+                     {/* Invoice Title Text */}
+                     <span className="truncate"> 
+                        Детали счета: {loadingSupplier ? 'Загрузка...' : (supplierData?.name || 'Поставщик не найден')}
+                     </span>
+                     {/* Urgent Badge (if applicable) */}
+                     {invoice.isUrgent && <Badge className="ml-2 bg-error-100 text-error-700 dark:bg-error-900/50 dark:text-error-300 flex-shrink-0">Срочно</Badge>} 
+                  </div>
+
+                  {/* Close Button */}
                   <button
                     type="button"
                     className="ml-auto inline-flex justify-center rounded-md border border-transparent p-1 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-800"
@@ -204,9 +219,9 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
                     <DetailItem label="Поставщик" value={loadingSupplier ? 'Загрузка...' : supplierData?.name} icon={<BuildingLibraryIcon />} />
                     <DetailItem label="ИНН" value={loadingSupplier ? 'Загрузка...' : supplierData?.tin} icon={<InboxIcon />} />
                     <DetailItem label="Сумма" value={formatCurrency(invoice.amount)} icon={<BanknotesIcon />} />
-                    <DetailItem label="Статус" value={<InvoiceStatusBadge status={invoice.status} />} icon={<Badge className="h-4 w-4 p-0 border-none bg-transparent" />} />
+                    <DetailItem label="Статус" value={<InvoiceStatusBadge status={invoice.status} />} icon={<TagIcon className="h-4 w-4 flex-shrink-0 text-neutral-400 dark:text-neutral-500" />} />
                     <DetailItem label="Срок оплаты" value={formatDate(invoice.dueDate)} icon={<CalendarDaysIcon />} />
-                    <DetailItem label="Проект" value={`${projectName} (#${projectNumber})`} icon={<HashtagIcon />} />
+                    <DetailItem label={project ? "Проект" : "Контекст"} value={`${contextName} (#${contextNumber})`} icon={<HashtagIcon />} />
                     <DetailItem label="Дата загрузки" value={formatDate(invoice.uploadedAt)} icon={<CalendarDaysIcon />} />
 
                     {invoice.fileName && (
@@ -232,16 +247,19 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
                   </dl>
                 </div>
 
-                {/* Closing Documents Section */}
+                {/* Closing Documents Section - Use documentsToDisplay */}
                 <div className="mt-4 border-t border-neutral-200 dark:border-neutral-700 pt-4">
                   <h4 className="text-md font-medium text-neutral-900 dark:text-neutral-100 mb-3">Закрывающие документы</h4>
                    {loadingClosingDocs && <p className="text-sm text-neutral-500 dark:text-neutral-400">Загрузка документов...</p>}
-                   {!loadingClosingDocs && closingDocuments.length === 0 && (
-                       <p className="text-sm text-neutral-500 dark:text-neutral-400">Закрывающие документы по этому счету еще не загружены.</p>
+                   {!loadingClosingDocs && documentsToDisplay.length === 0 && (
+                       <p className="text-sm text-warning-600 dark:text-warning-400 font-medium flex items-center">
+                          <ExclamationCircleIcon className="h-4 w-4 mr-1.5 inline-block"/>
+                          Закрывающие документы по этому счету еще не загружены.
+                       </p>
                    )}
-                   {!loadingClosingDocs && closingDocuments.length > 0 && (
+                   {!loadingClosingDocs && documentsToDisplay.length > 0 && (
                        <ul className="space-y-2">
-                          {closingDocuments.map(doc => (
+                          {documentsToDisplay.map(doc => (
                               <li key={doc.id} className="flex items-center justify-between p-2 bg-neutral-50 dark:bg-neutral-700/50 rounded-md">
                                  <a 
                                     href={doc.fileURL} 
@@ -249,7 +267,7 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
                                     rel="noopener noreferrer"
                                     className="text-sm truncate hover:underline text-primary-600 dark:text-primary-400 flex-1 min-w-0"
                                     title={`Скачать ${doc.fileName}`}
-                                >
+                                 >
                                     {/* Display Doc Info */} 
                                     {doc.type && <span className="uppercase font-semibold mr-1">{doc.type}</span>}
                                     {doc.number && `№${doc.number}`}
@@ -262,7 +280,7 @@ const InvoiceDetailsDialog: React.FC<InvoiceDetailsDialogProps> = ({
                           ))}
                        </ul>
                    )}
-                   {/* Placeholder for button to add closing docs if needed from here? Usually done from Project view */}
+                   {/* Placeholder for button to add closing docs */}
                 </div>
 
                 <div className="mt-6 flex justify-end space-x-2">

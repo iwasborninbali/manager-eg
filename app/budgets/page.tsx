@@ -1,12 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
-import DepartmentInvoiceList, { DepartmentInvoice } from '@/components/budgets/DepartmentInvoiceList'; // Import interface
+import React, { useState, useEffect } from 'react';
+import DepartmentInvoiceList, { DepartmentInvoice } from '@/components/budgets/DepartmentInvoiceList';
 import UploadDepartmentInvoiceDialog from '@/components/budgets/UploadDepartmentInvoiceDialog';
-import InvoiceDetailsDialog, { Invoice } from '@/components/invoices/InvoiceDetailsDialog'; // Revert Import
+import UploadDepartmentClosingDocDialog from '@/components/budgets/UploadDepartmentClosingDocDialog';
+import InvoiceDetailsDialog, { Invoice } from '@/components/invoices/InvoiceDetailsDialog';
 import { Button } from '@/components/ui/Button';
-import { DocumentArrowUpIcon } from '@heroicons/react/24/outline';
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { DocumentArrowUpIcon, DocumentPlusIcon, InboxArrowDownIcon, PaperClipIcon } from '@heroicons/react/24/outline';
+import { Timestamp, collection, query, onSnapshot, orderBy, getDocs, where, documentId } from 'firebase/firestore';
+import { db } from '@/firebase/config';
+
+// Interface for Department Closing Docs (match dialog)
+interface DepartmentClosingDocument {
+    id: string;
+    departmentInvoiceId: string;
+    fileName: string;
+    fileURL: string;
+    uploadedAt: Timestamp;
+    comment?: string | null;
+    type?: 'contract' | 'upd' | 'act' | 'other' | null;
+    date?: Timestamp | null;
+}
+
+// Interface for Suppliers (simplified, match what's needed)
+interface Supplier {
+    id: string;
+    name?: string;
+}
 
 // Updated mapping function to return the imported Invoice type (or null)
 const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): Invoice | null => {
@@ -34,49 +54,195 @@ const mapDeptInvoiceToInvoiceDetails = (deptInvoice: DepartmentInvoice): Invoice
     };
 };
 
-
 export default function DepartmentBudgetsPage() {
-  // State for upload dialog
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  // State for Invoice Details - use the imported Invoice type
+  // --- State --- 
+  const [departmentInvoices, setDepartmentInvoices] = useState<DepartmentInvoice[]>([]);
+  const [suppliers, setSuppliers] = useState<{ [id: string]: Supplier }>({});
+  const [departmentClosingDocs, setDepartmentClosingDocs] = useState<DepartmentClosingDocument[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [loadingClosingDocs, setLoadingClosingDocs] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isUploadInvoiceOpen, setIsUploadInvoiceOpen] = useState(false);
+  const [isUploadClosingDocOpen, setIsUploadClosingDocOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  // Handler to open details dialog
-  const handleInvoiceClick = (invoice: DepartmentInvoice) => {
-    const mappedInvoice = mapDeptInvoiceToInvoiceDetails(invoice);
+  // --- Data Fetching --- 
+  // Fetch Department Invoices
+  useEffect(() => {
+    setLoadingInvoices(true);
+    setError(null);
+    const q = query(collection(db, 'departmentInvoices'), orderBy('uploadedAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, 
+      (querySnapshot) => {
+        const invoicesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DepartmentInvoice));
+        setDepartmentInvoices(invoicesData);
+        setLoadingInvoices(false);
+      }, 
+      (err) => {
+        console.error("Error fetching department invoices:", err);
+        setError("Не удалось загрузить счета отдела.");
+        setLoadingInvoices(false);
+      }
+    );
+    return () => unsubscribe(); // Cleanup listener
+  }, []);
+
+  // Fetch Suppliers based on fetched invoices
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      const supplierIds = new Set<string>();
+      departmentInvoices.forEach(invoice => {
+        if (invoice.supplierId) supplierIds.add(invoice.supplierId);
+      });
+
+      if (supplierIds.size === 0) {
+          setLoadingSuppliers(false); return;
+      }
+      const neededSupplierIds = Array.from(supplierIds).filter(id => !suppliers[id]);
+      if (neededSupplierIds.length === 0) {
+          setLoadingSuppliers(false); return;
+      }
+
+      setLoadingSuppliers(true);
+      try {
+          // Fetch in chunks of 30 for 'in' query limit
+          const supplierIdChunks = neededSupplierIds.reduce((acc, item, i) => {
+              const chunkIndex = Math.floor(i / 30);
+              if (!acc[chunkIndex]) { acc[chunkIndex] = []; }
+              acc[chunkIndex].push(item);
+              return acc;
+          }, [] as string[][]);
+
+          const fetchedSuppliersUpdate: Record<string, Supplier> = {};
+          await Promise.all(supplierIdChunks.map(async (chunk) => {
+              if (chunk.length === 0) return;
+              const suppliersQuery = query(collection(db, 'suppliers'), where(documentId(), 'in', chunk));
+              const supplierSnapshot = await getDocs(suppliersQuery);
+              supplierSnapshot.forEach((doc) => {
+                  fetchedSuppliersUpdate[doc.id] = { id: doc.id, name: doc.data().name, ...doc.data() } as Supplier;
+              });
+          }));
+          setSuppliers(prevMap => ({ ...prevMap, ...fetchedSuppliersUpdate }));
+      } catch (supplierError) {
+          console.error("Error fetching suppliers: ", supplierError);
+          setError(prev => prev ? `${prev} Ошибка загр. поставщиков.` : "Ошибка загр. поставщиков.");
+      } finally {
+          setLoadingSuppliers(false);
+      }
+    };
+
+    if (!loadingInvoices && departmentInvoices.length > 0) {
+         fetchSuppliers();
+    } else if (departmentInvoices.length === 0) {
+         setLoadingSuppliers(false);
+    }
+
+  }, [departmentInvoices, loadingInvoices, suppliers]); // Depend on invoices, loading state, and suppliers map
+
+  // Fetch Department Closing Documents
+  useEffect(() => {
+    setLoadingClosingDocs(true);
+    // Query all docs, filtering will happen when needed in InvoiceDetailsDialog
+    const q = query(collection(db, 'departmentClosingDocuments'), orderBy('uploadedAt', 'desc')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const docsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DepartmentClosingDocument));
+      setDepartmentClosingDocs(docsData);
+      setLoadingClosingDocs(false);
+    }, (err) => {
+      console.error("Error fetching department closing documents:", err);
+      setError(prev => prev ? `${prev} Ошибка загр. закр. док.` : "Ошибка загр. закр. док.");
+      setLoadingClosingDocs(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // --- Handlers --- 
+  // Open details dialog (maps DepartmentInvoice to Invoice for the dialog)
+  const handleInvoiceClick = (deptInvoice: DepartmentInvoice) => {
+    const mappedInvoice = mapDeptInvoiceToInvoiceDetails(deptInvoice);
     setSelectedInvoice(mappedInvoice);
     setIsDetailsOpen(true);
   };
-
-  // Handler to close details dialog
+  // Close details dialog
   const handleCloseDetails = () => {
     setIsDetailsOpen(false);
-    setTimeout(() => setSelectedInvoice(null), 300); // Delay for transition
+    setTimeout(() => setSelectedInvoice(null), 300);
+  };
+  // Open/Close Upload Invoice Dialog
+  const handleOpenUploadInvoice = () => setIsUploadInvoiceOpen(true);
+  const handleCloseUploadInvoice = () => setIsUploadInvoiceOpen(false);
+  // Open/Close Upload Closing Doc Dialog
+  const handleOpenUploadClosingDoc = () => setIsUploadClosingDocOpen(true);
+  const handleCloseUploadClosingDoc = () => setIsUploadClosingDocOpen(false);
+  
+  // Success handler for closing doc upload (optional: show toast)
+  const handleClosingDocUploadSuccess = (docIds: string[]) => {
+      console.log("Department closing docs uploaded:", docIds);
+      // Could show a success toast here
   };
 
+  // --- Render --- 
   return (
     <main className="flex min-h-screen flex-col p-4 md:p-8 lg:p-12 bg-neutral-50 dark:bg-neutral-950">
       <div className="w-full max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-200">Бюджет отделов</h1>
-          {/* Icon-only Upload Button */}
-          <Button onClick={() => setIsUploadOpen(true)} variant="secondary" size="icon" title="Загрузить счет отдела">
-             <span className="sr-only">Загрузить счет отдела</span>
-             <DocumentArrowUpIcon className="h-5 w-5" />
-          </Button>
+          <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-200">Бюджет отдела</h1>
+          {/* Action Buttons */}
+          <div className="flex space-x-2">
+              {/* Upload Closing Doc Button - Changed Icon */}
+              <Button 
+                 onClick={handleOpenUploadClosingDoc} 
+                 variant="secondary" 
+                 size="icon" 
+                 title="Загрузить закрывающий документ отдела"
+                 disabled={loadingInvoices || departmentInvoices.length === 0} // Disable if no invoices to attach to
+              >
+                 <span className="sr-only">Загрузить закрывающий документ отдела</span>
+                 <PaperClipIcon className="h-5 w-5" />
+              </Button>
+              {/* Upload Invoice Button - Changed Icon */}
+              <Button 
+                 onClick={handleOpenUploadInvoice} 
+                 variant="secondary" 
+                 size="icon" 
+                 title="Загрузить счет отдела"
+              >
+                 <span className="sr-only">Загрузить счет отдела</span>
+                 <InboxArrowDownIcon className="h-5 w-5" />
+              </Button>
+           </div>
         </div>
 
-        {/* Pass click handler to DepartmentInvoiceList */}
+        {/* Pass fetched data and click handler to DepartmentInvoiceList */}
         <div className="p-6 bg-white dark:bg-neutral-800 rounded-lg shadow">
-          <DepartmentInvoiceList onInvoiceClick={handleInvoiceClick} />
+          {loadingInvoices && <p className="text-center text-neutral-500">Загрузка счетов...</p>} 
+          {error && <p className="text-center text-red-500">{error}</p>} 
+          {!loadingInvoices && !error && (
+            <DepartmentInvoiceList 
+              onInvoiceClick={handleInvoiceClick} 
+            />
+          )}
         </div>
       </div>
 
-      {/* Upload Dialog */}
+      {/* Upload Invoice Dialog */}
       <UploadDepartmentInvoiceDialog
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
+        isOpen={isUploadInvoiceOpen}
+        onClose={handleCloseUploadInvoice}
+      />
+      
+      {/* NEW Upload Department Closing Doc Dialog */}
+      <UploadDepartmentClosingDocDialog
+          isOpen={isUploadClosingDocOpen}
+          onClose={handleCloseUploadClosingDoc}
+          onSuccess={handleClosingDocUploadSuccess}
+          departmentInvoices={departmentInvoices} // Pass fetched invoices
+          suppliers={suppliers} // Pass suppliers map
       />
 
       {/* Invoice Details Dialog */}
@@ -85,9 +251,9 @@ export default function DepartmentBudgetsPage() {
             isOpen={isDetailsOpen}
             onClose={handleCloseDetails}
             invoice={selectedInvoice}
-            project={null} // Pass null explicitly
-            closingDocuments={[]} // Pass empty array explicitly
-            loadingClosingDocs={false}
+            project={null} // Explicitly null for department invoices
+            departmentClosingDocuments={departmentClosingDocs.filter(doc => doc.departmentInvoiceId === selectedInvoice.id)}
+            loadingClosingDocs={loadingClosingDocs}
         />
       )}
     </main>

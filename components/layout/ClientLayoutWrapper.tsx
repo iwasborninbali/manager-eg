@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import SideMenu from '@/components/layout/SideMenu';
 import CreateProjectDialog from '@/components/projects/CreateProjectDialog';
 import { Bars3Icon } from '@heroicons/react/24/outline';
+import { Toaster } from "@/components/ui/sonner";
 
 interface ClientLayoutWrapperProps {
   children: React.ReactNode;
@@ -51,6 +52,7 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
         onClose={() => setIsCreateProjectDialogOpen(false)}
         onSuccess={handleProjectCreated}
       />
+      <Toaster richColors position="bottom-right" />
     </div>
   );
 } 

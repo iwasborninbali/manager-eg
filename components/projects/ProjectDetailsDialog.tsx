@@ -13,7 +13,8 @@ import EditProjectDialog from './EditProjectDialog';
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectInvoicesDialog from './ProjectInvoicesDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
-import { generateAndDownloadHtmlReport } from '@/lib/reportUtils';
+import ProjectCustomerDocsDialog from './ProjectCustomerDocsDialog';
+import { generateAndDownloadHtmlReport, calculateFinancialSummary } from '@/lib/reportUtils';
 import { ProjectReportData, FinancialSummaryData } from '@/components/projects/ProjectFinancialReport';
 
 // Re-define Project interface (or import from a shared types file if you have one)
@@ -110,6 +111,7 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
   const [isFinancialsOpen, setIsFinancialsOpen] = useState(false);
   const [isInvoicesOpen, setIsInvoicesOpen] = useState(false);
   const [isClosingDocsOpen, setIsClosingDocsOpen] = useState(false);
+  const [isCustomerDocsOpen, setIsCustomerDocsOpen] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
 
   useEffect(() => {
@@ -183,6 +185,14 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
     setIsClosingDocsOpen(false);
   };
 
+  // Handlers for Customer Docs Dialog
+  const handleOpenCustomerDocsDialog = () => {
+    setIsCustomerDocsOpen(true);
+  };
+  const handleCloseCustomerDocsDialog = () => {
+    setIsCustomerDocsOpen(false);
+  };
+
   // --- Data Fetching for Report ---
   const fetchReportData = async (projectId: string): Promise<ProjectReportData | null> => {
     if (!projectId) return null;
@@ -248,72 +258,40 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
       const invoiceSummary = invoices.reduce((summary, inv) => {
         const status = inv.status || 'unknown';
         summary.countByStatus[status] = (summary.countByStatus[status] || 0) + 1;
-        if (status === 'overdue') {
-          summary.overdueCount += 1;
+
+        // Track total pending amount
+        if (status === 'pending_payment') {
+          summary.pendingAmount += inv.amount ?? 0; // Add amount if pending
         }
-        // Could add more logic here, e.g., check if dueDate is past and status isn't paid/cancelled
+
+        // Track overdue count
         const now = new Date();
         const dueDate = inv.dueDate?.toDate();
-        if (dueDate && dueDate < now && status !== 'paid' && status !== 'cancelled'){
-          // Potentially mark as overdue even if status field isn't set yet
-          if (status !== 'overdue') summary.overdueCount += 1; 
+        let isOverdue = false;
+        if (dueDate && dueDate < now && status !== 'paid' && status !== 'cancelled') {
+          isOverdue = true;
+        }
+        if (status === 'overdue') {
+          isOverdue = true;
+        }
+        if (isOverdue) {
+          summary.overdueCount += 1;
         }
 
         return summary;
-      }, { countByStatus: {} as { [status: string]: number }, overdueCount: 0 });
+      }, { 
+          countByStatus: {} as { [status: string]: number }, 
+          overdueCount: 0, 
+          pendingAmount: 0 // Initialize pending amount
+      });
       console.log("Calculated invoice summary:", invoiceSummary);
 
-      // --- Calculate Financial Summary (with Variances & Net Profit) --- 
-      const spent = invoices
-          .filter(inv => inv.status !== 'cancelled' && typeof inv.amount === 'number')
-          .reduce((sum, inv) => sum + (inv.amount ?? 0), 0);
+      // --- Calculate Financial Summary using utility function ---
+      const nonCancelledInvoices = invoices.filter(inv => inv.status !== 'cancelled');
+      // Use projectData and nonCancelledInvoices which are already defined
+      const financialSummary = calculateFinancialSummary(projectData, nonCancelledInvoices);
+      console.log("Calculated financial summary:", financialSummary);
 
-      const actualBudget = projectData.actual_budget ?? 0;
-      const plannedBudget = projectData.planned_budget ?? 0;
-      const actualRevenue = projectData.actual_revenue ?? 0;
-      const plannedRevenue = projectData.planned_revenue ?? 0;
-
-      const remainingBudget = actualBudget - spent;
-      const budgetVariance = actualBudget - plannedBudget; // Fact - Plan
-      const revenueVariance = actualRevenue - plannedRevenue; // Fact - Plan
-
-      const budgetVariancePercent = plannedBudget !== 0 ? (budgetVariance / plannedBudget) * 100 : undefined;
-      const revenueVariancePercent = plannedRevenue !== 0 ? (revenueVariance / plannedRevenue) * 100 : undefined;
-
-      let plannedMargin: number | undefined = undefined;
-      if (plannedRevenue !== 0) {
-          plannedMargin = ((plannedRevenue - plannedBudget) / plannedRevenue) * 100;
-      }
-
-      let actualMargin: number | undefined = undefined;
-      if (actualRevenue !== 0) {
-          actualMargin = ((actualRevenue - actualBudget) / actualRevenue) * 100;
-      }
-
-      let marginVariancePercent: number | undefined = undefined;
-      if (plannedMargin !== undefined && actualMargin !== undefined) {
-           marginVariancePercent = actualMargin - plannedMargin; // Difference in percentage points
-      }
-
-      // Calculate estimated taxes and net profit
-      const usnTaxAmount = projectData.usn_tax ?? 0;
-      const ndsTaxAmount = projectData.nds_tax ?? 0;
-      const totalEstimatedTaxes = usnTaxAmount + ndsTaxAmount;
-      const estimatedNetProfit = actualRevenue - actualBudget - totalEstimatedTaxes;
-
-      const financialSummary: FinancialSummaryData = {
-          totalSpent: spent,
-          remainingBudget: remainingBudget,
-          plannedMargin: plannedMargin,
-          actualMargin: actualMargin,
-          budgetVariance: budgetVariance,
-          budgetVariancePercent: budgetVariancePercent,
-          revenueVariance: revenueVariance,
-          revenueVariancePercent: revenueVariancePercent,
-          marginVariancePercent: marginVariancePercent,
-          estimatedNetProfit: estimatedNetProfit
-      };
-      console.log("Calculated financial summary (enhanced):", financialSummary);
       // --- End Financial Summary Calculation ---
 
       // 5. Structure the data
@@ -433,6 +411,19 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
                   <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-neutral-900 dark:text-neutral-100 flex justify-between items-center mb-4 flex-shrink-0">
                     <span className="truncate mr-4">Детали проекта: {project.name || 'Без имени'} (#{project.number || 'N/A'})</span>
                     <div className="flex items-center space-x-1 flex-shrink-0">
+                        {/* Customer Docs Button */}
+                         <button
+                           type="button"
+                           onClick={handleOpenCustomerDocsDialog}
+                           className="inline-flex justify-center rounded-md border border-transparent p-1 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-800"
+                           title="Документы с Заказчиком"
+                         >
+                           <span className="sr-only">Документы с Заказчиком</span>
+                           {/* Choose an appropriate icon, e.g., DocumentChartBarIcon or ClipboardDocumentListIcon */}
+                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                           </svg>
+                         </button>
                         {/* Closing Docs Button */}
                         <button
                            type="button"
@@ -615,6 +606,16 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
            <ProjectClosingDocsDialog
                isOpen={isClosingDocsOpen}
                onClose={handleCloseClosingDocsDialog}
+               projectId={project.id}
+               projectName={project.name || 'Unknown Project'}
+           />
+       )}
+       
+      {/* Render Customer Docs Dialog */} 
+      {project && (
+           <ProjectCustomerDocsDialog
+               isOpen={isCustomerDocsOpen}
+               onClose={handleCloseCustomerDocsDialog}
                projectId={project.id}
                projectName={project.name || 'Unknown Project'}
            />
