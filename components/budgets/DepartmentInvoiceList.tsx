@@ -5,6 +5,7 @@ import { collection, query, onSnapshot, Timestamp, getDocs, documentId, where, o
 import { db } from '@/firebase/config';
 import { DocumentArrowDownIcon, BuildingLibraryIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { DepartmentInvoiceData } from '@/lib/departmentInvoiceSchema';
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
 
 // Export the type used for invoices in this component
 export type DepartmentInvoice = DepartmentInvoiceData & { id: string };
@@ -38,6 +39,7 @@ const DepartmentInvoiceList: React.FC<DepartmentInvoiceListProps> = ({ onInvoice
     const [loadingInvoices, setLoadingInvoices] = useState(true);
     const [errorInvoices, setErrorInvoices] = useState<string | null>(null);
     const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+    const { user } = useAuth(); // Get current user
 
     // Fetch Suppliers based on loaded invoices
     useEffect(() => {
@@ -48,15 +50,15 @@ const DepartmentInvoiceList: React.FC<DepartmentInvoiceListProps> = ({ onInvoice
 
         const fetchSuppliers = async () => {
             const supplierIds = Array.from(new Set(
-                invoices.map(inv => inv.supplierId).filter(id => id && !supplierMap[id])
+                invoices.map(inv => inv.supplierId).filter(id => !!id && !supplierMap[id]) // Ensure id exists
             ));
             
             if (supplierIds.length === 0) { 
-                return; // No new suppliers to fetch for these invoices
+                return; 
             }
 
             setLoadingSuppliers(true);
-            const allNewlyFetchedSuppliers: { [id: string]: Supplier } = {}; // Accumulator object
+            const allNewlyFetchedSuppliers: { [id: string]: Supplier } = {}; 
             
             try {
                 for (let i = 0; i < supplierIds.length; i += 30) {
@@ -65,10 +67,9 @@ const DepartmentInvoiceList: React.FC<DepartmentInvoiceListProps> = ({ onInvoice
                     const snapshot = await getDocs(q);
                     const fetchedBatch: { [id: string]: Supplier } = {};
                     snapshot.forEach(doc => fetchedBatch[doc.id] = { id: doc.id, ...doc.data() } as Supplier);
-                    Object.assign(allNewlyFetchedSuppliers, fetchedBatch); // Accumulate results
+                    Object.assign(allNewlyFetchedSuppliers, fetchedBatch);
                 }
 
-                // Only update state if new suppliers were actually fetched
                 if (Object.keys(allNewlyFetchedSuppliers).length > 0) {
                     setSupplierMap(prev => ({ ...prev, ...allNewlyFetchedSuppliers }));
                 }
@@ -82,41 +83,43 @@ const DepartmentInvoiceList: React.FC<DepartmentInvoiceListProps> = ({ onInvoice
 
         fetchSuppliers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [invoices]); // Reverted dependency to only invoices
+    }, [invoices]); // Dependency on invoices is correct here
 
-    // Fetch All Department Invoices
+    // Fetch Department Invoices filtered by submitterUid
     useEffect(() => {
+        if (!user) { // Don't fetch if user is not logged in
+            setInvoices([]); // Clear invoices if user logs out
+            setLoadingInvoices(false);
+            return;
+        }
+
         setLoadingInvoices(true);
-        // Query all documents in 'departmentInvoices', ordered by upload date
         const q = query(
             collection(db, 'departmentInvoices'),
-            orderBy('uploadedAt', 'desc') // Order by upload date, descending
+            where('submitterUid', '==', user.uid), // Filter by current user's UID
+            orderBy('uploadedAt', 'desc') 
         );
 
-        // Subscribe to real-time updates
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const invoicesData: DepartmentInvoice[] = [];
             querySnapshot.forEach((doc) => {
-                // Push document data along with its ID
                 invoicesData.push({ id: doc.id, ...doc.data() } as DepartmentInvoice);
             });
-            setInvoices(invoicesData); // Update state with fetched invoices
-            setErrorInvoices(null); // Clear any previous error
-            setLoadingInvoices(false); // Set loading to false
+            setInvoices(invoicesData);
+            setErrorInvoices(null);
+            setLoadingInvoices(false);
         }, (error) => {
-            // Handle errors during fetch
-            console.error("Error fetching department invoices: ", error);
-            setErrorInvoices('Не удалось загрузить счета отдела.');
+            console.error("Error fetching department invoices for user:", user.uid, error);
+            setErrorInvoices('Не удалось загрузить ваши счета отдела.');
             setLoadingInvoices(false);
         });
 
-        // Cleanup subscription on component unmount
-        return () => unsubscribe();
-    }, []);
+        return () => unsubscribe(); // Cleanup listener
+    }, [user]); // Rerun effect if user changes
 
     // Render Logic
     if (loadingInvoices) {
-        return <p className="text-center py-4 text-neutral-500 dark:text-neutral-400">Загрузка счетов...</p>;
+        return <p className="text-center py-4 text-neutral-500 dark:text-neutral-400">Загрузка ваших счетов...</p>;
     }
 
     if (errorInvoices) {
@@ -124,8 +127,7 @@ const DepartmentInvoiceList: React.FC<DepartmentInvoiceListProps> = ({ onInvoice
     }
 
     if (invoices.length === 0) {
-        // Simplified message for no invoices
-        return <p className="text-center py-4 text-neutral-500 dark:text-neutral-400">Счета отделов еще не добавлены.</p>;
+        return <p className="text-center py-4 text-neutral-500 dark:text-neutral-400">Вы еще не добавляли счета отделов.</p>;
     }
 
     return (

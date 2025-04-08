@@ -17,26 +17,26 @@ import ProjectCustomerDocsDialog from './ProjectCustomerDocsDialog';
 import { generateAndDownloadHtmlReport, calculateFinancialSummary } from '@/lib/reportUtils';
 import { ProjectReportData, FinancialSummaryData } from '@/components/projects/ProjectFinancialReport';
 
-// Re-define Project interface (or import from a shared types file if you have one)
+// Re-define Project interface locally to include id (or import from a shared type if available)
 interface Project {
-  id: string;
-  budget?: number;
-  planned_budget?: number;
+  id: string; // Ensure ID is part of the interface
   actual_budget?: number;
-  planned_revenue?: number;
-  actual_revenue?: number;
-  usn_tax?: number;
-  nds_tax?: number;
-  status?: string;
-  duedate?: Timestamp;
+  planned_budget?: number;
   createdAt?: Timestamp;
   customer?: string;
+  duedate?: Timestamp;
   estimatecostlink?: string;
   managerid?: string;
   name?: string;
   number?: string;
+  planned_revenue?: number;
+  actual_revenue?: number;
   presentationlink?: string;
+  status?: string;
   updatedAt?: Timestamp;
+  description?: string;
+  usn_tax?: number;
+  nds_tax?: number;
 }
 
 // Define necessary interfaces for fetching report data
@@ -69,7 +69,7 @@ interface Supplier {
 interface ProjectDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  project: Project | null;
+  project: Project | null; // Use the local Project interface
 }
 
 // Helper functions
@@ -107,7 +107,6 @@ const DetailItem: React.FC<{ label: string; value?: string | number | React.Reac
 const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onClose, project }) => {
   const [managerName, setManagerName] = useState<string | null>(null);
   const [loadingManager, setLoadingManager] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isFinancialsOpen, setIsFinancialsOpen] = useState(false);
   const [isInvoicesOpen, setIsInvoicesOpen] = useState(false);
   const [isClosingDocsOpen, setIsClosingDocsOpen] = useState(false);
@@ -146,20 +145,6 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
       fetchManagerName();
     }
   }, [isOpen, project]);
-
-  // Handlers for Edit Project Dialog
-  const handleOpenEditDialog = () => {
-    setIsEditDialogOpen(true);
-  };
-  const handleCloseEditDialog = () => {
-    setIsEditDialogOpen(false);
-    // Data should refetch automatically if ProjectList uses onSnapshot
-    // or we could manually trigger a refetch if needed
-  };
-  const handleEditSuccess = (updatedData: Partial<Project>) => {
-    console.log("Project updated in Details Dialog:", updatedData);
-    // Potentially update local state if needed, but onSnapshot is preferred
-  };
 
   // Handlers for Financials Dialog
   const handleOpenFinancialsDialog = () => {
@@ -454,16 +439,6 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
                            <span className="sr-only">Финансы проекта</span>
                            <ChartBarIcon className="h-5 w-5" aria-hidden="true" />
                          </button>
-                        {/* Edit Button */}
-                        <button
-                           type="button"
-                           onClick={handleOpenEditDialog}
-                           className="inline-flex justify-center rounded-md border border-transparent p-1 text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-800"
-                           title="Редактировать проект"
-                         >
-                           <span className="sr-only">Редактировать проект</span>
-                           <PencilSquareIcon className="h-5 w-5" aria-hidden="true" />
-                         </button>
                         {/* Close Button */}
                         <button
                            type="button"
@@ -576,15 +551,6 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
       </Transition>
 
       {/* --- Render Dependent Dialogs --- */}
-      {project && (
-         <EditProjectDialog
-            isOpen={isEditDialogOpen}
-            onClose={handleCloseEditDialog}
-            project={project}
-            onSuccess={handleEditSuccess}
-         />
-      )}
-      
       {project && (
            <ProjectFinancialsDialog
                isOpen={isFinancialsOpen}

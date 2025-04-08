@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, onSnapshot, Timestamp, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, Timestamp, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '@/firebase/config'; // Adjust the path as necessary
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button'; // Import Button
+import { Button } from '@/components/ui/Button';
 import { ChartBarIcon } from '@heroicons/react/24/outline'; // Import icon for financials button
 import { DocumentDuplicateIcon, WalletIcon, BanknotesIcon as OutlineBanknotesIcon, BanknotesIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button and Wallet
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import ProjectDetailsDialog from './ProjectDetailsDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
 import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
 import { CalendarDaysIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Add icons for card details
+import { useAuth } from '@/context/AuthContext';
 
 // Define the structure of a Project document
 interface Project {
@@ -65,6 +66,7 @@ const ProjectList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(false); // Ref to track mount status for listener
+  const { user } = useAuth(); // Get the current user
   
   // State for Details Dialog
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -80,42 +82,35 @@ const ProjectList: React.FC = () => {
 
   // Effect for Initial Load
   useEffect(() => {
-    isMounted.current = true; // Mark as mounted
-    let didCancel = false; // Flag to prevent state update on unmount
+    if (!user) {
+      // If no user, don't fetch projects (or handle appropriately)
+      setLoading(false);
+      return;
+    }
 
-    const fetchInitialProjects = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const q = query(collection(db, 'projects'));
-        const querySnapshot = await getDocs(q);
-        if (!didCancel) {
-          const projectsData: Project[] = [];
-          querySnapshot.forEach((doc) => {
-            projectsData.push({ id: doc.id, ...doc.data() } as Project);
-          });
-          console.log("Initial projects fetched successfully.");
-          setProjects(projectsData);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error("Error fetching initial projects: ", err);
-        if (!didCancel) {
-          setError("Failed to load initial projects.");
-          setLoading(false);
-        }
-      }
-    };
+    setLoading(true);
+    // Filter projects where managerid matches the current user's UID
+    const q = query(
+      collection(db, 'projects'), 
+      where('managerid', '==', user.uid), // Filter by managerid
+      orderBy('createdAt', 'desc')
+    );
 
-    fetchInitialProjects();
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const projectsData: Project[] = [];
+      querySnapshot.forEach((doc) => {
+        projectsData.push({ id: doc.id, ...doc.data() } as Project);
+      });
+      setProjects(projectsData);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching projects:", err);
+      setError("Не удалось загрузить проекты.");
+      setLoading(false);
+    });
 
-    // Cleanup function
-    return () => {
-      didCancel = true;
-      isMounted.current = false; // Mark as unmounted
-      console.log("ProjectList unmounted, initial fetch effect cleanup.");
-    };
-  }, []); // Runs once on mount
+    return () => unsubscribe();
+  }, [user]); // Re-run when user changes
 
   // Effect for Real-time Updates (runs after initial load)
   useEffect(() => {
@@ -246,146 +241,100 @@ const ProjectList: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Мои Проекты</h1>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {projects.map((project) => (
-          <div
-            key={project.id}
-            className="relative group"
-          >
-            {/* Use Card component from Shadcn UI */}
-            <Card
-              // Removed variant="outline"
-              className="h-full flex flex-col bg-white dark:bg-neutral-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer overflow-hidden"
-              onClick={() => handleProjectClick(project)}
-            >
-              <CardHeader className="p-4 pb-2">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base font-semibold text-neutral-900 dark:text-neutral-100 truncate" title={project.name || 'Безымянный проект'}>
-                        {project.name || 'Безымянный проект'}
-                    </CardTitle>
-                    <CardDescription className="text-sm text-neutral-500 dark:text-neutral-400 truncate" title={`#${project.number || 'N/A'} - ${project.customer || 'Нет заказчика'}`}>
-                        #{project.number || 'N/A'} - {project.customer || 'Нет заказчика'}
-                    </CardDescription>
-                  </div>
-                  {/* Status Badge using translation and color map */} 
-                  {project.status && (
-                    <Badge
-                      variant="secondary" // Use secondary variant for a softer look
-                      className={cn(
-                        "text-xs px-2.5 py-1 rounded-full flex-shrink-0 whitespace-nowrap", // Adjusted padding and added whitespace-nowrap
-                        statusColors[project.status] || 'bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300'
-                      )}
-                      title={`Статус: ${translateProjectStatus(project.status)}`} // Add title for full text on hover
-                    >
-                      {translateProjectStatus(project.status)} {/* Use translated status */}
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-2 space-y-2.5 flex-grow">
-                 {/* Financial Info */}
-                 <div className="text-sm text-neutral-700 dark:text-neutral-300 space-y-2">
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Себестоимость (План):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_budget, 'N/A')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <BanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> Себестоимость (Факт):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_budget)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                            <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0" /> Выручка (План):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.planned_revenue, 'N/A')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                             <ArrowTrendingUpIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-success-500" /> Выручка (Факт):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.actual_revenue, 'N/A')}</span>
-                    </div>
-                    {/* Taxes */}
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <OutlineBanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-warning-500" /> УСН (1.5%):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.usn_tax, 'N/A')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                       <span className="flex items-center text-neutral-500 dark:text-neutral-400">
-                           <OutlineBanknotesIcon className="h-4 w-4 mr-1.5 flex-shrink-0 text-warning-500" /> НДС (5%):
-                       </span>
-                       <span className="font-medium text-neutral-900 dark:text-neutral-100">{formatCurrency(project.nds_tax, 'N/A')}</span>
-                    </div>
-                 </div>
-              </CardContent>
-              <CardFooter className="p-4 pt-3 text-xs text-neutral-500 dark:text-neutral-400 flex justify-between items-center border-t border-neutral-100 dark:border-neutral-700 mt-auto">
-                <div className="flex items-center">
-                  <CalendarDaysIcon className="h-3.5 w-3.5 mr-1 opacity-70" />
-                  <span>Срок: {formatDate(project.duedate)}</span>
-                </div>
-                {/* Keep existing action buttons */}
-                <div className="flex items-center space-x-0.5"> {/* Adjusted spacing */}
-                    {/* Closing Docs Button */}
-                    <Button 
-                       variant="ghost" size="icon" 
-                       className="text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400"
-                       onClick={(e) => handleOpenClosingDocsDialog(project, e)}
-                       aria-label="Закрывающие документы"
-                       title="Закрывающие документы"
-                    >
-                       <DocumentDuplicateIcon className="h-5 w-5" />
-                    </Button>
-                    {/* Financials Button */}
-                    <Button 
-                       variant="ghost" size="icon" 
-                       className="text-neutral-500 hover:text-primary-600 dark:hover:text-primary-400"
-                       onClick={(e) => handleOpenFinancialsDialog(project.id, e)}
-                       aria-label="Финансовые показатели"
-                       title="Финансовые показатели"
-                    >
-                       <ChartBarIcon className="h-5 w-5" />
-                    </Button>
-                </div>
-              </CardFooter>
-            </Card>
-           </div>
+          <ProjectCard 
+             key={project.id} 
+             project={project} 
+             onDetailsClick={() => handleProjectClick(project)}
+             onFinancialsClick={(e) => handleOpenFinancialsDialog(project.id, e)}
+             onClosingDocsClick={(e) => handleOpenClosingDocsDialog(project, e)}
+          />
         ))}
       </div>
 
-      {/* Render the Details Dialog */}
+      {/* Render Dialogs */}
       <ProjectDetailsDialog 
         isOpen={isDetailsOpen} 
         onClose={handleCloseDetailsDialog} 
-        project={selectedProject}
+        project={selectedProject} 
       />
+      <ProjectFinancialsDialog
+        isOpen={isFinancialsOpen}
+        onClose={handleCloseFinancialsDialog}
+        projectId={selectedProjectIdForFinancials}
+      />
+      <ProjectClosingDocsDialog
+        isOpen={isClosingDocsOpen}
+        onClose={handleCloseClosingDocsDialog}
+        projectId={selectedProjectForClosingDocs?.id ?? null}
+        projectName={selectedProjectForClosingDocs?.name}
+      />
+    </div>
+  );
+};
 
-       {/* Render the Financials Dialog */} 
-       {isFinancialsOpen && (
-           <ProjectFinancialsDialog
-               isOpen={isFinancialsOpen}
-               onClose={handleCloseFinancialsDialog}
-               projectId={selectedProjectIdForFinancials}
-           />
-       )}
+// --- Project Card Component ---
+// Ensure this component is defined below or imported correctly
+interface ProjectCardProps {
+  project: Project;
+  onDetailsClick: () => void;
+  onFinancialsClick: (event: React.MouseEvent) => void;
+  onClosingDocsClick: (event: React.MouseEvent) => void;
+}
 
-       {/* Render the Closing Docs Dialog */} 
-       {selectedProjectForClosingDocs && (
-           <ProjectClosingDocsDialog
-               isOpen={isClosingDocsOpen}
-               onClose={handleCloseClosingDocsDialog}
-               projectId={selectedProjectForClosingDocs.id}
-               projectName={selectedProjectForClosingDocs.name}
-           />
-       )}
-    </>
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDetailsClick, onFinancialsClick, onClosingDocsClick }) => {
+  const statusClass = statusColors[project.status || 'planning'] || statusColors.planning;
+
+  return (
+    <Card 
+        className="h-full flex flex-col transition-shadow duration-300 hover:shadow-lg dark:hover:shadow-primary-900/30 cursor-pointer overflow-hidden" 
+        onClick={onDetailsClick}
+        variant="glass"
+    >
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="text-lg font-semibold mb-1 line-clamp-2">{project.name || 'Без названия'}</CardTitle>
+            <CardDescription className="text-xs text-neutral-500 dark:text-neutral-400">
+              {project.number ? `№ ${project.number}` : ''} {project.customer ? `| ${project.customer}` : ''}
+            </CardDescription>
+          </div>
+          <Badge variant="outline" className={cn("text-xs whitespace-nowrap", statusClass)}>
+            {translateProjectStatus(project.status || 'planning')}
+          </Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-grow space-y-2 text-sm">
+        <div className="flex items-center text-neutral-600 dark:text-neutral-300">
+          <CalendarDaysIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+          <span>Срок сдачи: {formatDate(project.duedate)}</span>
+        </div>
+        <div className="flex items-center text-neutral-600 dark:text-neutral-300">
+          <OutlineBanknotesIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+          <span>Бюджет: {formatCurrency(project.actual_budget)} (План: {formatCurrency(project.planned_budget)})</span>
+        </div>
+        <div className="flex items-center text-neutral-600 dark:text-neutral-300">
+          <ArrowTrendingUpIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+          <span>Выручка: {formatCurrency(project.actual_revenue)} (План: {formatCurrency(project.planned_revenue)})</span>
+        </div>
+      </CardContent>
+
+      <CardFooter className="pt-4 border-t border-neutral-200 dark:border-neutral-700 flex justify-end space-x-2">
+        <Button variant="outline" size="sm" onClick={onFinancialsClick} title="Финансы">
+          <ChartBarIcon className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onClosingDocsClick} title="Закрывашки">
+          <DocumentDuplicateIcon className="h-4 w-4" />
+        </Button>
+      </CardFooter>
+    </Card>
   );
 };
 

@@ -6,7 +6,7 @@ import {
   BanknotesIcon,
   XMarkIcon,
   PlusIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
@@ -16,23 +16,23 @@ import { Badge } from '@/components/ui/Badge';
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  openCreateProjectDialog: () => void;
 }
 
 // Define type for navigation items
 interface NavItem {
   name: string;
   href: string;
-  icon: React.ReactNode;
+  icon: React.ReactElement;
 }
 
 // Renamed component to SideMenu
-export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: SideMenuProps) {
+export default function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { user, userData, googleSignIn, logOut } = useAuth();
   const menuPanelRef = useRef<HTMLDivElement>(null);
 
   // Removed internal state management for open/animation - controlled by props now
 
+  // Restore the original navigation structure
   const navigation: NavItem[] = [
     {
       name: 'Проекты',
@@ -44,8 +44,7 @@ export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: S
       href: '/budgets',
       icon: <BanknotesIcon className="h-5 w-5" aria-hidden="true" />
     },
-    // Remove Suppliers link
-    // Add more navigation items as needed
+    // Removed other navigation items here
   ];
 
   // Construct user display name
@@ -155,7 +154,7 @@ export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: S
               )}
 
               {/* Navigation Links - Adjusted margin */}
-              <nav className={`${user ? 'mt-5' : 'mt-5'} px-2 space-y-1`}> {/* Ensure margin top exists even without user */} 
+              <nav className={`${user ? 'mt-5' : 'mt-5'} px-2 space-y-1`}> {/* Ensure margin top exists even without user */}
                 {navigation.map((item) => (
                   <Link
                     key={item.name}
@@ -163,30 +162,12 @@ export default function SideMenu({ isOpen, onClose, openCreateProjectDialog }: S
                     className="flex items-center px-3 py-2 rounded-md text-base font-medium text-neutral-900 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-800 transition-colors group"
                     onClick={onClose} // Close menu on link click
                   >
+                    {/* Use the icon component directly */}
                     <span className="text-primary-600 dark:text-primary-400 mr-3 group-hover:text-primary-700 dark:group-hover:text-primary-300">{item.icon}</span>
                     {item.name}
                   </Link>
                 ))}
               </nav>
-              
-              {/* Actions Section */}
-              <div className="mt-8 px-2 space-y-1">
-                <h3 className="px-3 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">
-                    Действия
-                </h3>
-                <button
-                  onClick={() => {
-                    openCreateProjectDialog();
-                    onClose(); // Close menu after triggering dialog
-                  }}
-                  className="flex items-center px-3 py-2 rounded-md text-base font-medium text-neutral-900 hover:bg-neutral-100 dark:text-neutral-100 dark:hover:bg-neutral-800 transition-colors w-full group"
-                >
-                  <span className="text-primary-600 dark:text-primary-400 mr-3 group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    <PlusIcon className="h-5 w-5" />
-                  </span>
-                  Создать проект
-                </button>
-              </div>
             </div>
 
             {/* Footer Actions (Login/Logout) */}
