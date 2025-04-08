@@ -19,9 +19,9 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
     setIsCreateProjectDialogOpen(false); // Close the dialog on success
   };
 
-  const openCreateProjectDialog = () => {
-    setIsCreateProjectDialogOpen(true);
-  };
+  // const openCreateProjectDialog = () => {
+  //   setIsCreateProjectDialogOpen(true);
+  // };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -40,7 +40,6 @@ export default function ClientLayoutWrapper({ children }: ClientLayoutWrapperPro
       <SideMenu
         isOpen={isSideMenuOpen}
         onClose={() => setIsSideMenuOpen(false)}
-        openCreateProjectDialog={openCreateProjectDialog}
       />
 
       <main className="flex-grow">

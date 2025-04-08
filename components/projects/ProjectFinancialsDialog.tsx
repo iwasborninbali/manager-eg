@@ -2,12 +2,12 @@
 
 import React, { Fragment, useState, useEffect, useMemo } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, BanknotesIcon, ReceiptPercentIcon, CurrencyDollarIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, InformationCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { Timestamp, doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Button } from '@/components/ui/Button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { CardContent } from '@/components/ui/Card';
+// Removed unused Card imports
 import { calculateFinancialSummary } from '@/lib/reportUtils'; // Import the utility function
 
 // Define Project interface locally for now (consider centralizing later)
@@ -67,7 +67,6 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
   const [loadingProject, setLoadingProject] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [netProfit, setNetProfit] = useState<number>(0);
 
   // Effect to fetch project data
   useEffect(() => {
@@ -83,13 +82,11 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
           } else {
             setError('Проект не найден.');
             setProject(null);
-            setNetProfit(0);
           }
         } catch (err) {
           console.error("Error fetching project:", err);
           setError('Не удалось загрузить данные проекта.');
           setProject(null);
-          setNetProfit(0);
         } finally {
           setLoadingProject(false);
         }
@@ -102,20 +99,6 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
         if (!isOpen) setLoadingProject(false); // Ensure loading resets if closed
     }
   }, [isOpen, projectId]);
-
-  // Effect to calculate Net Profit when project data is available
-  useEffect(() => {
-    if (project) {
-      const actualRevenue = project.actual_revenue ?? 0;
-      const actualBudget = project.actual_budget ?? 0;
-      const usnTaxAmount = project.usn_tax ?? 0;
-      const ndsTaxAmount = project.nds_tax ?? 0;
-      const calculatedNetProfit = actualRevenue - actualBudget - usnTaxAmount - ndsTaxAmount;
-      setNetProfit(calculatedNetProfit);
-    } else {
-      setNetProfit(0); // Reset if project data is not available
-    }
-  }, [project]); // Recalculate when project data changes
 
   // Effect to fetch invoices for the project
   useEffect(() => {
@@ -205,6 +188,12 @@ const ProjectFinancialsDialog: React.FC<ProjectFinancialsDialogProps> = ({ isOpe
 
   // Display loading state or error
   const isLoading = loadingProject || loadingInvoices;
+
+  // Calculated values
+  // const revenue = project?.actual_revenue ?? project?.planned_revenue ?? 0; // Unused
+  // const expenses = project?.actual_budget ?? project?.planned_budget ?? 0; // Unused
+
+  // Calculate taxes
 
   return (
     <Transition appear show={isOpen} as={Fragment}>

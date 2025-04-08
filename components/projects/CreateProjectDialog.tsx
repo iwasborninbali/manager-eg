@@ -128,7 +128,7 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
     try {
         if (formData.estimatecostlink) new URL(formData.estimatecostlink);
         if (formData.presentationlink) new URL(formData.presentationlink);
-    } catch (_) {
+    } catch {
         setError("Пожалуйста, введите действительные URL для ссылок.");
         setLoading(false);
         return;
@@ -136,21 +136,6 @@ export default function CreateProjectDialog({ isOpen, onClose, onSuccess }: Crea
 
     try {
       // Prepare the data object according to ProjectData schema (updated)
-      // Remove the direct budget field, it will be handled in finalProjectData
-      const baseProjectData: Omit<ProjectData, 'createdAt' | 'updatedAt' | 'status' | 'budget' | 'planned_budget' | 'actual_budget' | 'usn_tax' | 'nds_tax'> & {
-          planned_revenue?: number; // Keep planned_revenue if needed separately
-          duedate: Timestamp;
-      } = {
-        number: formData.number || undefined,
-        name: formData.name,
-        customer: formData.customer || undefined,
-        planned_revenue: formData.planned_revenue ? parseFloat(formData.planned_revenue) : undefined,
-        duedate: Timestamp.fromDate(new Date(formData.duedate)),
-        managerid: formData.managerid,
-        estimatecostlink: formData.estimatecostlink, // Keep as required string
-        presentationlink: formData.presentationlink || undefined,
-      };
-
       // Parse numbers from form strings, setting undefined if empty or invalid
       const parseOptionalFloat = (value: string): number | undefined => {
           const parsed = parseFloat(value);

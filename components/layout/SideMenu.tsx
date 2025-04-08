@@ -5,7 +5,6 @@ import {
   FolderIcon,
   BanknotesIcon,
   XMarkIcon,
-  PlusIcon,
   ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';

@@ -5,6 +5,7 @@ import * as firebaseAuth from 'firebase/auth';
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore'; // Import Firestore functions
 import { auth, db } from '../firebase/config'; // Import auth and db
+import { Timestamp } from 'firebase/firestore'; // Import Timestamp type
 
 // Define a type for our custom user data from Firestore
 export interface UserData {
@@ -13,7 +14,7 @@ export interface UserData {
   displayName: string | null;
   first_name?: string; // Added optional first name
   last_name?: string;  // Added optional last name
-  createdAt: any; // Consider using Timestamp type from Firebase if needed
+  createdAt?: Timestamp; // Use Timestamp type from Firebase
   role?: string[]; // Changed type to array of strings
   // Add other fields from your Firestore user document as needed
 }

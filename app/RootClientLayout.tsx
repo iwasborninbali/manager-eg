@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import ClientLayoutWrapper from "@/components/layout/ClientLayoutWrapper";
 import AccessDeniedPage from "@/components/auth/AccessDeniedPage";
-import { Toaster } from "@/components/ui/sonner";
+// import { Toaster } from "@/components/ui/sonner";
+// import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 // Remove unused imports if they were added here
 // import { usePathname } from 'next/navigation'; 
 // import SideMenu from '@/components/layout/SideMenu'; 

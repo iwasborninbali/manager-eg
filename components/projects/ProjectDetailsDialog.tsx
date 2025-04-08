@@ -2,20 +2,19 @@
 
 import React, { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { LinkIcon, CalendarDaysIcon, UserCircleIcon, CurrencyDollarIcon, DocumentTextIcon, PresentationChartLineIcon, UserIcon as SolidUserIcon, PencilSquareIcon, ChartBarIcon, DocumentDuplicateIcon, TagIcon, ArrowDownTrayIcon, XMarkIcon as OutlineXMarkIcon } from '@heroicons/react/24/solid';
+import { LinkIcon, CalendarDaysIcon, UserCircleIcon, CurrencyDollarIcon, DocumentTextIcon, PresentationChartLineIcon, UserIcon as SolidUserIcon, ChartBarIcon, DocumentDuplicateIcon, TagIcon, ArrowDownTrayIcon, XMarkIcon as OutlineXMarkIcon } from '@heroicons/react/24/solid';
 import { doc, getDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { translateProjectStatus } from '@/lib/translations';
-import EditProjectDialog from './EditProjectDialog';
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectInvoicesDialog from './ProjectInvoicesDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
 import ProjectCustomerDocsDialog from './ProjectCustomerDocsDialog';
 import { generateAndDownloadHtmlReport, calculateFinancialSummary } from '@/lib/reportUtils';
-import { ProjectReportData, FinancialSummaryData } from '@/components/projects/ProjectFinancialReport';
+import { ProjectReportData } from '@/components/projects/ProjectFinancialReport';
 
 // Re-define Project interface locally to include id (or import from a shared type if available)
 interface Project {
@@ -582,8 +581,7 @@ const ProjectDetailsDialog: React.FC<ProjectDetailsDialogProps> = ({ isOpen, onC
            <ProjectCustomerDocsDialog
                isOpen={isCustomerDocsOpen}
                onClose={handleCloseCustomerDocsDialog}
-               projectId={project.id}
-               projectName={project.name || 'Unknown Project'}
+               project={{ id: project.id, name: project.name || 'Unknown Project' }}
            />
        )}
        

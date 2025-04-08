@@ -1,21 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, onSnapshot, Timestamp, getDocs, orderBy, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, Timestamp, orderBy, where } from 'firebase/firestore';
 import { db } from '@/firebase/config'; // Adjust the path as necessary
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ChartBarIcon } from '@heroicons/react/24/outline'; // Import icon for financials button
-import { DocumentDuplicateIcon, WalletIcon, BanknotesIcon as OutlineBanknotesIcon, BanknotesIcon } from '@heroicons/react/24/outline'; // Import icon for closing docs button and Wallet
+import { DocumentDuplicateIcon, BanknotesIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Added missing icons
 import { cn } from '@/lib/utils';
 import { translateProjectStatus } from '@/lib/translations'; // Import the translation function
 import ProjectFinancialsDialog from './ProjectFinancialsDialog';
 import ProjectDetailsDialog from './ProjectDetailsDialog';
 import ProjectClosingDocsDialog from './ProjectClosingDocsDialog';
-import { Fragment } from 'react'; // Убедитесь, что Fragment импортирован
-import { CalendarDaysIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline'; // Add icons for card details
+import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
+// import { PlusIcon, DocumentIcon } from '@heroicons/react/24/outline';
+// import CreateProjectDialog from './CreateProjectDialog';
+// import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'; // Commented out - needs path correction or removal
 
 // Define the structure of a Project document
 interface Project {
@@ -317,7 +319,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onDetailsClick, onFi
           <span>Срок сдачи: {formatDate(project.duedate)}</span>
         </div>
         <div className="flex items-center text-neutral-600 dark:text-neutral-300">
-          <OutlineBanknotesIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+          <BanknotesIcon className="h-4 w-4 mr-2 flex-shrink-0" />
           <span>Бюджет: {formatCurrency(project.actual_budget)} (План: {formatCurrency(project.planned_budget)})</span>
         </div>
         <div className="flex items-center text-neutral-600 dark:text-neutral-300">

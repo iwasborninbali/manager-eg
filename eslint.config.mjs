@@ -2,7 +2,6 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
 import globals from "globals";
-import tseslint from "typescript-eslint";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,7 +29,7 @@ const eslintConfig = [
     },
     // Keep ignoring the functions directory if build happens separately
     {
-        ignores: ["functions/**"]
+        ignores: ["functions/**", ".next/**"]
     }
     // Add other distinct configuration objects if needed
 ];

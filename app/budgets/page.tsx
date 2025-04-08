@@ -60,7 +60,6 @@ export default function DepartmentBudgetsPage() {
   const [suppliers, setSuppliers] = useState<{ [id: string]: Supplier }>({});
   const [departmentClosingDocs, setDepartmentClosingDocs] = useState<DepartmentClosingDocument[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [loadingClosingDocs, setLoadingClosingDocs] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,14 +99,13 @@ export default function DepartmentBudgetsPage() {
       });
 
       if (supplierIds.size === 0) {
-          setLoadingSuppliers(false); return;
+          return;
       }
       const neededSupplierIds = Array.from(supplierIds).filter(id => !suppliers[id]);
       if (neededSupplierIds.length === 0) {
-          setLoadingSuppliers(false); return;
+          return;
       }
 
-      setLoadingSuppliers(true);
       try {
           // Fetch in chunks of 30 for 'in' query limit
           const supplierIdChunks = neededSupplierIds.reduce((acc, item, i) => {
@@ -130,15 +128,11 @@ export default function DepartmentBudgetsPage() {
       } catch (supplierError) {
           console.error("Error fetching suppliers: ", supplierError);
           setError(prev => prev ? `${prev} Ошибка загр. поставщиков.` : "Ошибка загр. поставщиков.");
-      } finally {
-          setLoadingSuppliers(false);
       }
     };
 
     if (!loadingInvoices && departmentInvoices.length > 0) {
          fetchSuppliers();
-    } else if (departmentInvoices.length === 0) {
-         setLoadingSuppliers(false);
     }
 
   }, [departmentInvoices, loadingInvoices, suppliers]); // Depend on invoices, loading state, and suppliers map
